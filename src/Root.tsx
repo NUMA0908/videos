@@ -1,56 +1,33 @@
-import { Composition, Folder } from "remotion";
-import { HelloWorld } from "./HelloWorld";
-import { Logo } from "./HelloWorld/Logo";
-import { Title } from "./HelloWorld/Title";
+import React from "react";
+import { Composition, Folder, cancelRender, continueRender, delayRender } from "remotion";
+import { BRANDS } from "./brands";
+import { cuadrate } from "./brands/cuadrate/brand";
+import {
+  CUADRATE_EJEMPLO_DURATION,
+  CuadrateEjemplo,
+  cuadrateEjemploDefaults,
+} from "./brands/cuadrate/ads/CuadrateEjemplo";
+import { loadBrandFonts } from "./fonts";
 
-// Each <Composition> is an entry in the sidebar!
+// Bloquea el render hasta que las fuentes de todas las marcas estén cargadas.
+const fontHandle = delayRender("Cargando fuentes de marca");
+loadBrandFonts(BRANDS)
+  .then(() => continueRender(fontHandle))
+  .catch((err) => cancelRender(err));
 
-export const RemotionRoot: React.FC = () => {
-  return (
-    <>
-      <Folder name="Elements">
-        <Composition
-          id="Logo"
-          component={Logo}
-          durationInFrames={150}
-          fps={30}
-          width={1920}
-          height={1080}
-          defaultProps={{
-            logoColor1: "#91EAE4",
-            logoColor2: "#86A8E7",
-          }}
-        />
-        <Composition
-          id="Title"
-          component={Title}
-          durationInFrames={115}
-          fps={30}
-          width={1920}
-          height={1080}
-          defaultProps={{
-            titleText: "Welcome to Remotion",
-            titleColor: "#000000",
-          }}
-        />
-      </Folder>
+// Un <Folder> por marca. Anuncio nuevo: créalo en src/brands/<marca>/ads/ y regístralo aquí.
+// IDs: <Marca>-<Anuncio>-<formato>, solo letras, números y guiones.
+export const RemotionRoot: React.FC = () => (
+  <>
+    <Folder name="Cuadrate">
       <Composition
-        // You can take the "id" to render a video:
-        // bunx remotion render HelloWorld
-        id="HelloWorld"
-        component={HelloWorld}
-        durationInFrames={150}
-        fps={30}
-        width={1920}
-        height={1080}
-        // You can override these props for each render:
-        // https://www.remotion.dev/docs/parametrized-rendering
-        defaultProps={{
-          titleText: "Welcome to Remotion",
-          titleColor: "#000000",
-        }}
+        id="Cuadrate-Ejemplo-9x16"
+        component={CuadrateEjemplo}
+        durationInFrames={CUADRATE_EJEMPLO_DURATION}
+        fps={cuadrate.fps}
+        {...cuadrate.formats.vertical}
+        defaultProps={cuadrateEjemploDefaults}
       />
-
-    </>
-  );
-};
+    </Folder>
+  </>
+);

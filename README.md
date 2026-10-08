@@ -1,54 +1,14 @@
-# Remotion video
+# Estudio de videos
 
-<p align="center">
-  <a href="https://github.com/remotion-dev/logo">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://github.com/remotion-dev/logo/raw/main/animated-logo-banner-dark.apng">
-      <img alt="Animated Remotion Logo" src="https://github.com/remotion-dev/logo/raw/main/animated-logo-banner-light.gif">
-    </picture>
-  </a>
-</p>
+Anuncios en video hechos con [Remotion](https://www.remotion.dev/) para varias marcas
+(Cuadrate y, más adelante, otras). Reglas y estructura del proyecto: ver [CLAUDE.md](CLAUDE.md).
 
-Welcome to your Remotion project!
-
-## Commands
-
-**Install Dependencies**
-
-```console
-npm i --loglevel=error
+```bash
+npm install
+npm run dev          # Studio
+npm run render       # anuncio principal → out/
+npm run render:all   # todas las composiciones → out/
 ```
 
-**Start Preview**
-
-```console
-npm run dev
-```
-
-**Render video**
-
-```console
-npx remotion render
-```
-
-**Upgrade Remotion**
-
-```console
-npx remotion upgrade
-```
-
-## Docs
-
-Get started with Remotion by reading the [fundamentals page](https://www.remotion.dev/docs/the-fundamentals).
-
-## Help
-
-We provide help on our [Discord server](https://discord.gg/6VzzNDwUwV).
-
-## Issues
-
-Found an issue with Remotion? [File an issue here](https://github.com/remotion-dev/remotion/issues/new).
-
-## License
-
-Note that for some entities a company license is needed. [Read the terms here](https://github.com/remotion-dev/remotion/blob/main/LICENSE.md).
+Remotion es gratis para equipos de hasta 3 personas; para empresas más grandes revisa la
+[licencia](https://github.com/remotion-dev/remotion/blob/main/LICENSE.md).

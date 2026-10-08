@@ -1,12 +1,13 @@
 {
-  "name": "my-video",
+  "name": "videos-studio",
   "version": "1.0.0",
-  "description": "My Remotion video",
+  "description": "Estudio de videos y publicidad multimarca (Remotion)",
   "repository": {},
   "license": "UNLICENSED",
   "private": true,
   "dependencies": {
     "@remotion/cli": "4.0.534",
+    "@remotion/fonts": "^4.0.534",
     "@remotion/zod-types": "4.0.534",
     "react": "19.2.3",
     "react-dom": "19.2.3",
@@ -23,6 +24,8 @@
   },
   "scripts": {
     "dev": "remotion studio",
+    "render": "remotion render Cuadrate-Ejemplo-9x16 out/Cuadrate-Ejemplo-9x16.mp4",
+    "render:all": "node scripts/render-all.mjs",
     "build": "remotion bundle",
     "upgrade": "remotion upgrade",
     "lint": "eslint src && tsc"
