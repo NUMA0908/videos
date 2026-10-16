@@ -18,7 +18,12 @@ src/
     <marca>/ads/            # anuncios de la marca
 public/<marca>/{logo,screenshots,audio,fonts}/
 scripts/render-all.mjs      # renderiza todas las composiciones
+juegos/                     # SECCIÓN APARTE: juegos web independientes (no Remotion)
+  la-llorona/               # juego de terror en canvas + Web Audio (abrir index.html)
 ```
+
+`juegos/` está separado del estudio de videos: no usa Remotion, no importa nada de `src/` y no le
+aplican las reglas de marcas/anuncios de abajo. Ver `juegos/README.md`.
 
 ## Reglas
 
