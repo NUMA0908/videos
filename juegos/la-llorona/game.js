@@ -17,8 +17,9 @@
   const SOLID = [false, true, false, false, true, false, true, false, true, false];
   const OPAQUE = [false, true, false, false, true, false, true, false, false, false];
 
+  const SURFACE = { [T.GRASS]: "grass", [T.BUSH]: "bush", [T.WATER]: "water", [T.BRIDGE]: "wood", [T.FLOOR]: "wood", [T.PATH]: "dirt" };
   const PLAYER = { walk: 95, run: 158, radius: 9 };
-  const STAMINA = { drain: 30, regen: 17, recover: 30 };
+  const STAMINA = { max: 160, drain: 16, regen: 24, recover: 35 };
   const BATTERY_DRAIN = 0.9; // % por segundo
   const LLORONA = { wander: 52, investigate: 78, chase: 102, perChild: 9, catchDist: 20 };
 
@@ -89,6 +90,46 @@
       this.startAmbient();
     },
 
+    setLevels(river, dread) {
+      if (!this.ctx) return;
+      const t = this.ctx.currentTime;
+      this.riverGain.gain.setTargetAtTime(river * 0.16, t, 0.3);
+      this.dreadGain.gain.setTargetAtTime(dread * 0.09, t, 0.4);
+    },
+
+    // Utilidades de síntesis
+    burst(start, len, type, freq, q, gain, out) {
+      const c = this.ctx;
+      const n = this.noise();
+      const f = c.createBiquadFilter();
+      f.type = type;
+      f.frequency.value = freq;
+      f.Q.value = q;
+      const g = c.createGain();
+      g.gain.setValueAtTime(0.0001, start);
+      g.gain.linearRampToValueAtTime(gain, start + Math.min(0.012, len * 0.25));
+      g.gain.exponentialRampToValueAtTime(0.001, start + len);
+      n.connect(f).connect(g).connect(out || this.master);
+      n.start(start, Math.random() * 1.5);
+      n.stop(start + len + 0.03);
+      return f;
+    },
+    tone(start, len, f0, f1, type, gain, out) {
+      const c = this.ctx;
+      const o = c.createOscillator();
+      o.type = type;
+      o.frequency.setValueAtTime(f0, start);
+      o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), start + len);
+      const g = c.createGain();
+      g.gain.setValueAtTime(0.0001, start);
+      g.gain.linearRampToValueAtTime(gain, start + Math.min(0.01, len * 0.2));
+      g.gain.exponentialRampToValueAtTime(0.001, start + len);
+      o.connect(g).connect(out || this.master);
+      o.start(start);
+      o.stop(start + len + 0.03);
+      return o;
+    },
+
     toggleMute() {
       this.muted = !this.muted;
       if (this.master) this.master.gain.value = this.muted ? 0 : 0.85;
@@ -128,6 +169,45 @@
       wind.connect(lp).connect(g).connect(this.master);
       wind.start();
       lfo.start();
+      // Corriente del río (volumen según la distancia al agua)
+      const river = this.noise();
+      river.loop = true;
+      const rbp = c.createBiquadFilter();
+      rbp.type = "bandpass";
+      rbp.frequency.value = 700;
+      rbp.Q.value = 0.6;
+      const rlfo = c.createOscillator();
+      rlfo.frequency.value = 0.3;
+      const rlfoG = c.createGain();
+      rlfoG.gain.value = 180;
+      rlfo.connect(rlfoG).connect(rbp.frequency);
+      this.riverGain = c.createGain();
+      this.riverGain.gain.value = 0;
+      river.connect(rbp).connect(this.riverGain).connect(this.master);
+      river.start(0, 0.7);
+      rlfo.start();
+      // Pavor: cuerdas disonantes que suben cuando ella está cerca
+      this.dreadGain = c.createGain();
+      this.dreadGain.gain.value = 0;
+      const dlp = c.createBiquadFilter();
+      dlp.type = "lowpass";
+      dlp.frequency.value = 900;
+      dlp.connect(this.dreadGain).connect(this.master);
+      [110, 116.5, 164.8, 233].forEach((f) => {
+        const o = c.createOscillator();
+        o.type = "sawtooth";
+        o.frequency.value = f;
+        const v = c.createOscillator();
+        v.frequency.value = rand(3, 6);
+        const vg = c.createGain();
+        vg.gain.value = f * 0.012;
+        v.connect(vg).connect(o.frequency);
+        const og = c.createGain();
+        og.gain.value = 0.25;
+        o.connect(og).connect(dlp);
+        o.start();
+        v.start();
+      });
       // Zumbido grave
       [
         [49, 0.025],
@@ -234,35 +314,211 @@
       });
     },
 
-    step(vol, water) {
+    // Pasos según la superficie: grass | wood | dirt | bush | water
+    step(vol, surface) {
       if (!this.ctx) return;
-      const c = this.ctx;
-      const t = c.currentTime;
-      const n = this.noise();
-      const bp = c.createBiquadFilter();
-      bp.type = "bandpass";
-      bp.frequency.value = water ? 900 : rand(220, 360);
-      bp.Q.value = water ? 0.8 : 1.4;
-      const g = c.createGain();
-      const len = water ? 0.18 : 0.07;
-      g.gain.setValueAtTime(vol, t);
-      g.gain.exponentialRampToValueAtTime(0.001, t + len);
-      n.connect(bp).connect(g).connect(this.master);
-      n.start(t, Math.random());
-      n.stop(t + len + 0.02);
+      const t = this.ctx.currentTime;
+      const v = vol * rand(0.8, 1.15);
+      if (surface === "wood") {
+        // tabla hueca: golpe grave + chasquido, a veces cruje
+        this.tone(t, 0.14, rand(150, 190), 70, "sine", v * 1.5);
+        this.burst(t, 0.05, "bandpass", rand(800, 1100), 7, v * 1.1);
+        if (Math.random() < 0.3) {
+          const out = this.ctx.createBiquadFilter();
+          out.type = "bandpass";
+          out.frequency.value = 600;
+          out.Q.value = 4;
+          out.connect(this.master);
+          this.tone(t + 0.04, 0.3, rand(170, 220), rand(120, 150), "sawtooth", v * 0.5, out);
+        }
+      } else if (surface === "water") {
+        // chapoteo + burbujas
+        const f = this.burst(t, 0.3, "bandpass", 1600, 0.9, v * 1.4);
+        f.frequency.exponentialRampToValueAtTime(450, t + 0.3);
+        this.burst(t + 0.02, 0.22, "highpass", 3200, 0.5, v * 0.45);
+        for (let i = 0; i < 3; i++) {
+          const st = t + 0.05 + Math.random() * 0.2;
+          const f0 = rand(350, 600);
+          this.tone(st, 0.06, f0, f0 * 2.2, "sine", v * 0.35);
+        }
+      } else if (surface === "grass") {
+        // hierba: roce suave y amortiguado
+        this.burst(t, 0.14, "highpass", rand(2500, 3800), 0.4, v * 0.45);
+        this.burst(t, 0.09, "lowpass", 260, 1, v * 0.7);
+      } else if (surface === "bush") {
+        // hojas: varios roces seguidos
+        for (let i = 0; i < 4; i++) this.burst(t + i * 0.04 + Math.random() * 0.02, 0.11, "bandpass", rand(2800, 5200), 1.2, v * 0.6);
+      } else {
+        // tierra/grava: crujido granular
+        for (let i = 0; i < 5; i++) this.burst(t + i * 0.011 + Math.random() * 0.01, 0.025, "bandpass", rand(1400, 3200), 2, v * 0.65);
+        this.burst(t, 0.07, "lowpass", 240, 1, v * 0.8);
+      }
     },
 
-    sob(vol, pan) {
+    // Susurro con formantes (suena a voz sin palabras)
+    whisper(vol, pan) {
+      if (!this.ctx || vol < 0.02) return;
+      const c = this.ctx;
+      const out = this.out(pan);
+      let t = c.currentTime;
+      const vowels = [
+        [300, 2300],
+        [500, 900],
+        [700, 1200],
+        [350, 2000],
+      ];
+      const syll = randi(3, 6);
+      for (let i = 0; i < syll; i++) {
+        const [f1, f2] = pick(vowels);
+        const len = rand(0.12, 0.3);
+        [f1, f2].forEach((f, k) => {
+          this.burst(t, len, "bandpass", f, 9, vol * (k ? 0.5 : 0.8), out);
+        });
+        if (Math.random() < 0.4) this.burst(t + len, 0.12, "highpass", 5000, 0.7, vol * 0.35, out); // "sss"
+        t += len + rand(0.03, 0.12);
+      }
+    },
+
+    // Grito ahogado / quejido grave y distorsionado
+    moan(vol, pan) {
       if (!this.ctx || vol < 0.02) return;
       const c = this.ctx;
       const t = c.currentTime;
       const out = this.out(pan);
-      for (let i = 0; i < 3; i++) {
-        const st = t + i * 0.26;
+      const env = c.createGain();
+      env.gain.setValueAtTime(0, t);
+      env.gain.linearRampToValueAtTime(vol * 0.35, t + 0.6);
+      env.gain.linearRampToValueAtTime(0, t + 2.6);
+      const ws = c.createWaveShaper();
+      const curve = new Float32Array(256);
+      for (let i = 0; i < 256; i++) {
+        const x = (i / 255) * 2 - 1;
+        curve[i] = Math.tanh(x * 4);
+      }
+      ws.curve = curve;
+      const lp = c.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.value = 1400;
+      ws.connect(lp).connect(env).connect(out);
+      const o = c.createOscillator();
+      o.type = "sawtooth";
+      o.frequency.setValueAtTime(260, t);
+      o.frequency.linearRampToValueAtTime(330, t + 0.8);
+      o.frequency.exponentialRampToValueAtTime(110, t + 2.6);
+      const vib = c.createOscillator();
+      vib.frequency.value = 7;
+      const vg = c.createGain();
+      vg.gain.value = 25;
+      vib.connect(vg).connect(o.frequency);
+      const og = c.createGain();
+      og.gain.value = 0.3;
+      o.connect(og).connect(ws);
+      o.start(t);
+      vib.start(t);
+      o.stop(t + 2.7);
+      vib.stop(t + 2.7);
+    },
+
+    // Llanto entrecortado de mujer
+    cry(vol, pan) {
+      if (!this.ctx || vol < 0.02) return;
+      const t = this.ctx.currentTime;
+      const out = this.out(pan);
+      const bp = this.ctx.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.value = 1300;
+      bp.Q.value = 1.5;
+      bp.connect(out);
+      const n = randi(4, 7);
+      for (let i = 0; i < n; i++) {
+        const st = t + i * rand(0.28, 0.4);
+        const f0 = rand(620, 780) - i * 12;
+        this.tone(st, rand(0.2, 0.32), f0, f0 * 0.72, "sawtooth", vol * 0.25, bp);
+        this.burst(st + 0.22, 0.12, "bandpass", 1800, 2, vol * 0.18, out); // inspiración
+      }
+    },
+
+    // Golpe orquestal disonante cuando te ve
+    stinger(vol) {
+      if (!this.ctx) return;
+      const t = this.ctx.currentTime;
+      [98, 104, 147, 208, 415, 440].forEach((f) => this.tone(t, 2.2, f, f * 0.94, "sawtooth", vol * 0.07));
+      this.tone(t, 0.6, 70, 35, "sine", vol * 0.7);
+      this.burst(t, 0.5, "lowpass", 400, 1, vol * 0.4);
+    },
+
+    // Eventos del ambiente nocturno
+    owl(vol, pan) {
+      const t = this.ctx.currentTime;
+      const out = this.out(pan);
+      [0, 0.45, 0.75].forEach((d, i) => this.tone(t + d, i ? 0.25 : 0.4, 400, 340, "sine", vol * 0.25, out));
+    },
+    crickets(vol, pan) {
+      const t = this.ctx.currentTime;
+      const out = this.out(pan);
+      const f = rand(4200, 5200);
+      for (let k = 0; k < randi(3, 6); k++)
+        for (let i = 0; i < 4; i++) this.tone(t + k * 0.35 + i * 0.035, 0.025, f, f, "square", vol * 0.04, out);
+    },
+    frog(vol, pan) {
+      const t = this.ctx.currentTime;
+      const out = this.out(pan);
+      const f = rand(90, 140);
+      for (let i = 0; i < randi(2, 4); i++) {
+        const st = t + i * 0.32;
+        for (let k = 0; k < 6; k++) this.tone(st + k * 0.025, 0.03, f * 2, f, "square", vol * 0.12, out);
+      }
+    },
+    branch(vol, pan) {
+      const t = this.ctx.currentTime;
+      const out = this.out(pan);
+      this.burst(t, 0.05, "highpass", 1800, 1, vol * 0.9, out);
+      this.burst(t + 0.04, 0.04, "bandpass", 2500, 2, vol * 0.5, out);
+      this.tone(t, 0.12, 120, 60, "sine", vol * 0.5, out);
+    },
+    howl(vol, pan) {
+      const t = this.ctx.currentTime;
+      const out = this.out(pan);
+      const lp = this.ctx.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.value = 1100;
+      lp.connect(out);
+      const o = this.tone(t, 2.4, 480, 380, "triangle", vol * 0.18, lp);
+      o.frequency.cancelScheduledValues(t);
+      o.frequency.setValueAtTime(420, t);
+      o.frequency.linearRampToValueAtTime(700, t + 0.7);
+      o.frequency.linearRampToValueAtTime(640, t + 1.6);
+      o.frequency.exponentialRampToValueAtTime(380, t + 2.4);
+    },
+    gust(vol) {
+      const t = this.ctx.currentTime;
+      const f = this.burst(t, 3, "bandpass", 300, 0.8, vol * 0.35);
+      f.frequency.linearRampToValueAtTime(900, t + 1.5);
+      f.frequency.linearRampToValueAtTime(250, t + 3);
+    },
+    sniff(vol, pan) {
+      const t = this.ctx.currentTime;
+      const out = this.out(pan);
+      this.burst(t, 0.12, "highpass", 2500, 0.8, vol * 0.25, out);
+      this.burst(t + 0.18, 0.1, "highpass", 2500, 0.8, vol * 0.2, out);
+    },
+
+    sob(vol, pan, voice = 560) {
+      if (!this.ctx || vol < 0.02) return;
+      const c = this.ctx;
+      const t = c.currentTime;
+      const out = this.out(pan);
+      if (Math.random() < 0.3) {
+        this.sniff(vol, pan);
+        return;
+      }
+      const n = randi(2, 4);
+      for (let i = 0; i < n; i++) {
+        const st = t + i * rand(0.22, 0.32);
         const o = c.createOscillator();
         o.type = "triangle";
-        o.frequency.setValueAtTime(560 - i * 30, st);
-        o.frequency.exponentialRampToValueAtTime(380 - i * 25, st + 0.2);
+        o.frequency.setValueAtTime(voice - i * 30 + rand(-20, 20), st);
+        o.frequency.exponentialRampToValueAtTime(voice * 0.68 - i * 25, st + 0.2);
         const g = c.createGain();
         g.gain.setValueAtTime(0, st);
         g.gain.linearRampToValueAtTime(vol * 0.22, st + 0.03);
@@ -675,7 +931,7 @@
       x: door.x,
       y: door.y + 30,
       angle: Math.PI / 2,
-      stamina: 100,
+      stamina: STAMINA.max,
       exhausted: false,
       battery: 100,
       flash: true,
@@ -697,7 +953,7 @@
         const t = tileAt(tx, ty);
         return farFromChurch && apart && t !== T.WATER && t !== T.BRIDGE && (sideOk || tolerance > 0.6);
       }, 2000);
-      children.push({ name, x: pos.x, y: pos.y, state: "lost", sobTimer: rand(0, 3), bob: rand(0, 6) });
+      children.push({ name, x: pos.x, y: pos.y, state: "lost", sobTimer: rand(0, 3), bob: rand(0, 6), voice: 500 + i * 45 });
     });
 
     const batteries = [];
@@ -749,6 +1005,8 @@
       hintedBush: false,
       chaseCount: 0,
       reclaimed: 0,
+      ambTimer: 2,
+      whisperTimer: 5,
     };
     say("Encuentra a los 4 niños perdidos y tráelos a la iglesia antes del amanecer.", 6);
     say("Escucha su llanto... y no dejes que ELLA te vea.", 5);
@@ -911,7 +1169,7 @@
         say("¡Estás agotado!", 2, "#c9a27a");
       }
     } else {
-      p.stamina = Math.min(100, p.stamina + STAMINA.regen * dt * (p.moving ? 0.6 : 1));
+      p.stamina = Math.min(STAMINA.max, p.stamina + STAMINA.regen * dt * (p.moving ? 0.6 : 1));
       if (p.exhausted && p.stamina >= STAMINA.recover) p.exhausted = false;
     }
     const tile = tileAtPx(p.x, p.y);
@@ -938,7 +1196,7 @@
       p.stepTimer -= dt;
       if (p.stepTimer <= 0) {
         p.stepTimer = p.running ? 0.27 : 0.45;
-        Sound.step(p.running ? 0.18 : 0.08, tile === T.WATER);
+        Sound.step(p.running ? 0.2 : 0.1, SURFACE[tile] || "dirt");
       }
     }
 
@@ -991,7 +1249,7 @@
           c.sobTimer = rand(2.5, 4.5);
           const d = dist(c.x, c.y, p.x, p.y);
           const vol = clamp(1 - d / 750, 0, 1);
-          Sound.sob(vol * vol, (c.x - p.x) / 400);
+          Sound.sob(vol * vol, (c.x - p.x) / 400, c.voice);
         }
       }
     }
@@ -1030,6 +1288,28 @@
     if (G.heartTimer <= 0 && G.fear > 0.08) {
       G.heartTimer = 1.15 - G.fear * 0.72;
       Sound.heartbeat(G.fear * 0.8);
+    }
+    // Ambiente: río, pavor y sonidos de la noche
+    const ptx = Math.floor(p.x / TILE);
+    const riverDist = Math.abs(p.y / TILE - (riverY[clamp(ptx, 0, MW - 1)] + 0.5));
+    Sound.setLevels(clamp(1 - riverDist / 12, 0, 1), clamp(G.fear * 1.2 - 0.15, 0, 1));
+    G.ambTimer -= dt;
+    if (G.ambTimer <= 0 && Sound.ctx) {
+      G.ambTimer = rand(3, 8);
+      const pan = rand(-1, 1);
+      const r = Math.random();
+      if (riverDist < 8 && r < 0.3) Sound.frog(rand(0.4, 0.8), pan);
+      else if (r < 0.45) Sound.crickets(rand(0.5, 1), pan);
+      else if (r < 0.6) Sound.owl(rand(0.4, 0.8), pan);
+      else if (r < 0.72) Sound.branch(rand(0.3, 0.7), pan);
+      else if (r < 0.82) Sound.gust(rand(0.5, 1));
+      else if (r < 0.9) Sound.howl(rand(0.3, 0.6), pan);
+    }
+    // Con mucho miedo oyes susurros a tu alrededor
+    G.whisperTimer -= dt;
+    if (G.whisperTimer <= 0) {
+      G.whisperTimer = rand(4, 9);
+      if (G.fear > 0.45) Sound.whisper(G.fear * 0.6, rand(-1, 1));
     }
     G.shake = Math.max(G.shake - dt * 3, G.fear > 0.7 ? (G.fear - 0.7) * 6 : 0);
 
@@ -1083,7 +1363,8 @@
     if (canSee) {
       if (L.state !== "chase") {
         G.chaseCount++;
-        Sound.scream(clamp(1 - d / 500, 0.35, 0.9));
+        Sound.stinger(1);
+        Sound.scream(clamp(1 - d / 500, 0.3, 0.75));
         say("¡TE VIO! ¡Corre!", 2.5, "#ff6b6b");
         G.shake = 1.2;
       }
@@ -1174,7 +1455,12 @@
     if (L.wailTimer <= 0) {
       L.wailTimer = rand(9, 16);
       const vol = clamp(1 - d / 950, 0, 1);
-      Sound.wail(vol, (L.x - p.x) / 450);
+      const pan = (L.x - p.x) / 450;
+      const kind = Math.random();
+      if (kind < 0.4) Sound.wail(vol, pan);
+      else if (kind < 0.65) Sound.cry(vol, pan);
+      else if (kind < 0.85) Sound.moan(vol, pan);
+      else Sound.whisper(vol * 1.4, pan);
       if (d < 650) say(`«${pick(WAILS)}»`, 3, "#d8d8ff");
     }
 
@@ -1223,10 +1509,12 @@
   }
 
   function lose(reason) {
+    Sound.setLevels(0, 0);
     G.endReason = reason;
     state = "gameover";
   }
   function win() {
+    Sound.setLevels(0, 0);
     state = "win";
   }
 
@@ -1253,71 +1541,160 @@
     ctx.restore();
   }
 
-  function drawLlorona(x, y, alpha, t, chasing) {
+  // La Llorona: alta, encorvada, vestido de novia podrido y empapado, pelo mojado sobre la cara
+  function drawLlorona(x, y, alpha, t, chasing, vx = 0) {
+    const glitch = Math.random() < (chasing ? 0.08 : 0.03);
     ctx.save();
-    ctx.translate(x, y + Math.sin(t * 2) * 3 - 6);
+    ctx.translate(x + (glitch ? rand(-5, 5) : 0), y + Math.sin(t * 1.7) * 2.5 - 10);
     ctx.globalAlpha = alpha;
-    // sombra
-    ctx.fillStyle = "rgba(0,0,0,0.35)";
-    ctx.beginPath();
-    ctx.ellipse(0, 26, 12, 4, 0, 0, Math.PI * 2);
-    ctx.fill();
-    // vestido
-    const grad = ctx.createLinearGradient(0, -12, 0, 26);
-    grad.addColorStop(0, "rgba(240,242,245,0.95)");
-    grad.addColorStop(1, "rgba(190,200,215,0.35)");
+    const sway = clamp(-vx / 60, -1, 1); // el vestido y el pelo quedan atrás al moverse
+
+    // niebla negra a sus pies
+    const mist = ctx.createRadialGradient(0, 30, 2, 0, 30, 30);
+    mist.addColorStop(0, "rgba(0,0,0,0.6)");
+    mist.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = mist;
+    ctx.fillRect(-30, 0, 60, 60);
+
+    // vestido: harapos largos con manchas de agua y lodo
+    const grad = ctx.createLinearGradient(0, -14, 0, 36);
+    grad.addColorStop(0, "rgba(214,214,206,0.97)");
+    grad.addColorStop(0.55, "rgba(160,162,152,0.9)");
+    grad.addColorStop(1, "rgba(40,44,40,0.25)");
     ctx.fillStyle = grad;
     ctx.beginPath();
-    ctx.moveTo(-6, -10);
-    ctx.quadraticCurveTo(-14, 6, -17, 22);
-    for (let i = 0; i <= 8; i++) {
-      const hx = -17 + i * 4.25;
-      const hy = 22 + Math.sin(t * 7 + i * 1.3) * 3 + (i % 2 ? 4 : 0);
-      ctx.lineTo(hx, hy);
+    ctx.moveTo(-5, -12);
+    ctx.quadraticCurveTo(-13, 6, -15 + sway * 4, 26);
+    const strips = 9;
+    for (let i = 0; i <= strips; i++) {
+      const hx = -15 + sway * 4 + i * (30 / strips);
+      const long = (i * 7) % 3 === 0 ? 12 : i % 2 ? 2 : 7; // jirones de distinto largo
+      const hy = 26 + long + Math.sin(t * 6 + i * 1.7) * 3;
+      ctx.lineTo(hx + sway * long * 0.6, hy);
+      ctx.lineTo(hx + 1.6 + sway * 2, 24 + Math.sin(t * 5 + i) * 2);
     }
-    ctx.quadraticCurveTo(14, 6, 6, -10);
+    ctx.quadraticCurveTo(13, 6, 5, -12);
     ctx.closePath();
     ctx.fill();
-    // brazos extendidos
-    ctx.strokeStyle = "rgba(230,232,236,0.8)";
-    ctx.lineWidth = 3;
+    // manchas y desgarros
+    ctx.fillStyle = "rgba(30,24,18,0.45)";
+    ctx.beginPath();
+    ctx.ellipse(-5, 18, 4, 7, 0.3, 0, Math.PI * 2);
+    ctx.ellipse(6, 13, 3, 5, -0.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(60,0,0,0.35)";
+    ctx.beginPath();
+    ctx.ellipse(1, 2, 3, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // gotas que caen del vestido
+    ctx.fillStyle = "rgba(150,170,190,0.5)";
+    for (let i = 0; i < 3; i++) {
+      const dy = ((t * 40 + i * 13) % 18);
+      ctx.fillRect(-10 + i * 9, 28 + dy, 1, 2);
+    }
+
+    // brazos larguísimos y huesudos con garras
+    const reach = chasing ? 1 : 0;
+    ctx.strokeStyle = "rgba(196,200,190,0.95)";
     ctx.lineCap = "round";
-    const reach = chasing ? 6 : 0;
+    ctx.lineJoin = "round";
+    [-1, 1].forEach((side) => {
+      const tw = Math.sin(t * (chasing ? 11 : 2.5) + side) * (chasing ? 2.5 : 1.5);
+      const ex = side * (11 + reach * 6);
+      const ey = 6 - reach * 10 + tw;
+      const hx = side * (14 + reach * 12);
+      const hy = 22 - reach * 26 + tw;
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.moveTo(side * 6, -7);
+      ctx.lineTo(ex, ey);
+      ctx.lineTo(hx, hy);
+      ctx.stroke();
+      // dedos
+      ctx.lineWidth = 1;
+      for (let f = -1; f <= 1; f++) {
+        const a = Math.atan2(hy - ey, hx - ex) + f * 0.35;
+        ctx.beginPath();
+        ctx.moveTo(hx, hy);
+        ctx.lineTo(hx + Math.cos(a) * 6, hy + Math.sin(a) * 6);
+        ctx.stroke();
+      }
+    });
+
+    // cabeza ladeada, con tirones bruscos
+    const twitch = Math.sin(t * 0.9) > 0.92 ? Math.sin(t * 40) * 0.5 : 0;
+    ctx.save();
+    ctx.translate(0, -18);
+    ctx.rotate(0.35 + twitch);
+    // cara gris verdosa
+    ctx.fillStyle = "#b9bfb2";
     ctx.beginPath();
-    ctx.moveTo(-7, -4);
-    ctx.lineTo(-14 - reach, 6 - reach + Math.sin(t * 3) * 2);
-    ctx.moveTo(7, -4);
-    ctx.lineTo(14 + reach, 6 - reach + Math.cos(t * 3) * 2);
+    ctx.ellipse(0, 0, 5, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // ojo hueco que asoma entre el pelo
+    ctx.fillStyle = "#000";
+    ctx.beginPath();
+    ctx.ellipse(1.8, -1.2, 1.8, 2.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    if (chasing) {
+      ctx.shadowColor = "#ff1a1a";
+      ctx.shadowBlur = 8;
+      ctx.fillStyle = "#ff3030";
+    } else ctx.fillStyle = "#e8e8e8";
+    ctx.fillRect(1.4, -1.6, 1, 1);
+    ctx.shadowBlur = 0;
+    // boca estirada
+    ctx.fillStyle = "#0a0000";
+    ctx.beginPath();
+    ctx.ellipse(0.8, 3.6, 1.5, chasing ? 3.4 : 2.2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // lágrima negra
+    ctx.strokeStyle = "rgba(0,0,0,0.85)";
+    ctx.lineWidth = 0.9;
+    ctx.beginPath();
+    ctx.moveTo(1.8, 1);
+    ctx.lineTo(2.2, 6);
     ctx.stroke();
-    // cabeza
-    ctx.fillStyle = "#e9e5dc";
+    // pelo negro mojado: mechones que caen sobre la cara hasta la cintura
+    ctx.fillStyle = "#040404";
     ctx.beginPath();
-    ctx.arc(0, -15, 6, 0, Math.PI * 2);
+    ctx.ellipse(-0.5, -3, 6.5, 5, 0, Math.PI, 0);
     ctx.fill();
-    // pelo largo
-    ctx.fillStyle = "#050505";
+    ctx.strokeStyle = "#050505";
+    ctx.lineCap = "round";
+    const locks = [-6, -4.5, -3, -1.5, -0.3, 4.2, 5.6, 6.6];
+    locks.forEach((lx, i) => {
+      const len = 14 + ((i * 5) % 4) * 4;
+      const w = Math.sin(t * 3 + i) * 1.5 + sway * 3;
+      ctx.lineWidth = i === 4 ? 1.4 : 2;
+      ctx.beginPath();
+      ctx.moveTo(lx * 0.8, -5);
+      ctx.quadraticCurveTo(lx + w * 0.5, len * 0.45, lx * 1.2 + w, len);
+      ctx.stroke();
+    });
+    ctx.restore();
+
+    // velo roto
+    ctx.fillStyle = "rgba(220,225,230,0.14)";
     ctx.beginPath();
-    ctx.moveTo(-7, -16);
-    ctx.quadraticCurveTo(0, -26, 7, -16);
-    ctx.lineTo(8, 4 + Math.sin(t * 4) * 2);
-    ctx.lineTo(4, -10);
-    ctx.lineTo(-4, -10);
-    ctx.lineTo(-8, 4 + Math.cos(t * 4) * 2);
+    ctx.moveTo(-8, -26);
+    ctx.quadraticCurveTo(0, -32, 8, -26);
+    ctx.lineTo(13 + sway * 6, 4);
+    ctx.lineTo(4, -2);
+    ctx.lineTo(-2, 6);
+    ctx.lineTo(-13 + sway * 6, 2);
     ctx.closePath();
-    ctx.fill();
-    // ojos
-    ctx.fillStyle = chasing ? "#ff2a2a" : "#000";
-    ctx.fillRect(-3, -16, 2, 2);
-    ctx.fillRect(1, -16, 2, 2);
-    // velo
-    ctx.fillStyle = "rgba(255,255,255,0.18)";
-    ctx.beginPath();
-    ctx.moveTo(-9, -20);
-    ctx.quadraticCurveTo(0, -30, 9, -20);
-    ctx.lineTo(12, 0);
-    ctx.lineTo(-12, 0);
     ctx.fill();
     ctx.restore();
+
+    // interferencia: franjas desplazadas de su silueta
+    if (glitch && alpha > 0.3) {
+      ctx.save();
+      ctx.globalAlpha = alpha * 0.5;
+      ctx.fillStyle = Math.random() < 0.5 ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.8)";
+      for (let i = 0; i < 3; i++) ctx.fillRect(x - 16 + rand(-6, 6), y - 40 + Math.random() * 70, 32, rand(1, 3));
+      ctx.restore();
+    }
   }
 
   function drawBattery(x, y, t) {
@@ -1382,7 +1759,7 @@
         ctx.globalAlpha = 1;
       },
     });
-    ents.push({ y: L.y, draw: () => drawLlorona(L.x, L.y, 0.95, t, L.state === "chase") });
+    ents.push({ y: L.y, draw: () => drawLlorona(L.x, L.y, 0.95, t, L.state === "chase", L.vx) });
     ents.sort((a, b) => a.y - b.y).forEach((e) => e.draw());
 
     // Niebla (se ilumina con la linterna)
@@ -1416,12 +1793,11 @@
     const dL = dist(L.x, L.y, p.x, p.y);
     if (dL < 320) {
       const flick = Math.random() < 0.85 ? 1 : 0;
-      drawLlorona(L.x, L.y, (1 - dL / 320) * 0.22 * flick, t, L.state === "chase");
+      drawLlorona(L.x, L.y, (1 - dL / 320) * 0.22 * flick, t, L.state === "chase", L.vx);
     }
     if (L.state === "chase") {
       ctx.fillStyle = "rgba(255,40,40,0.9)";
-      ctx.fillRect(L.x - 3, L.y - 22 + Math.sin(t * 2) * 3, 2, 2);
-      ctx.fillRect(L.x + 1, L.y - 22 + Math.sin(t * 2) * 3, 2, 2);
+      ctx.fillRect(L.x + 1, L.y - 30 + Math.sin(t * 1.7) * 2.5, 2, 2);
     }
     ctx.restore();
 
@@ -1572,7 +1948,7 @@
     const pad = 18;
     const bw = Math.min(170, W * 0.32);
     bar(pad, pad + 16, bw, 8, p.battery / 100, p.battery < 20 ? "#c9643a" : "#e6d37a", `Linterna ${Math.ceil(p.battery)}%${p.flash ? "" : " (apagada)"}`);
-    bar(pad, pad + 50, bw, 8, p.stamina / 100, p.exhausted ? "#7a4a4a" : "#8fbf8a", p.exhausted ? "Aliento (agotado)" : "Aliento");
+    bar(pad, pad + 50, bw, 8, p.stamina / STAMINA.max, p.exhausted ? "#7a4a4a" : "#8fbf8a", p.exhausted ? "Aliento (agotado)" : "Aliento");
 
     ctx.font = "15px Georgia, serif";
     ctx.textAlign = "left";
@@ -1672,63 +2048,127 @@
     }
   }
 
+  // Cara del susto final: piel agrietada, cuencas negras que gotean, boca desencajada con dientes
+  const faceRng = mulberry32(666);
+  const CRACKS = Array.from({ length: 14 }, () => {
+    const pts = [[(faceRng() - 0.5) * 140, (faceRng() - 0.5) * 190]];
+    for (let k = 0; k < 4; k++) {
+      const [px, py] = pts[pts.length - 1];
+      pts.push([px + (faceRng() - 0.5) * 30, py + (faceRng() - 0.3) * 24]);
+    }
+    return pts;
+  });
+  const LOCKS = Array.from({ length: 26 }, (_, i) => {
+    const side = i % 2 ? 1 : -1;
+    // la mayoría cae por los lados; unos pocos cruzan la cara
+    const x = i < 4 ? side * (12 + faceRng() * 25) : side * (55 + faceRng() * 55);
+    return { x, len: 170 + faceRng() * 130, w: 1.5 + faceRng() * 4, ph: faceRng() * 6, bend: (faceRng() - 0.5) * 50 };
+  });
+
   function drawFace(cx, cy, s, t) {
     ctx.save();
     ctx.translate(cx, cy);
     ctx.scale(s, s);
+    ctx.rotate(0.12 + Math.sin(t * 50) * 0.03);
     // pelo detrás
-    ctx.fillStyle = "#030303";
+    ctx.fillStyle = "#020202";
     ctx.beginPath();
-    ctx.ellipse(0, 10, 120, 170, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 30, 135, 200, 0, 0, Math.PI * 2);
     ctx.fill();
-    // cara
-    const g = ctx.createRadialGradient(0, -20, 10, 0, 0, 120);
-    g.addColorStop(0, "#f2efe6");
-    g.addColorStop(1, "#9aa0a2");
+    // cara alargada y demacrada
+    const g = ctx.createRadialGradient(-10, -30, 10, 0, 10, 130);
+    g.addColorStop(0, "#d9dccf");
+    g.addColorStop(0.6, "#9aa197");
+    g.addColorStop(1, "#4a514b");
     ctx.fillStyle = g;
     ctx.beginPath();
-    ctx.ellipse(0, 0, 78, 108, 0, 0, Math.PI * 2);
+    ctx.moveTo(0, -120);
+    ctx.bezierCurveTo(70, -120, 85, -40, 70, 30);
+    ctx.bezierCurveTo(60, 110, 25, 150, 0, 155);
+    ctx.bezierCurveTo(-25, 150, -60, 110, -70, 30);
+    ctx.bezierCurveTo(-85, -40, -70, -120, 0, -120);
     ctx.fill();
-    // ojos huecos
-    ctx.fillStyle = "#000";
-    [-30, 30].forEach((ex) => {
+    // mejillas hundidas
+    ctx.fillStyle = "rgba(30,36,32,0.45)";
+    [-1, 1].forEach((sd) => {
       ctx.beginPath();
-      ctx.ellipse(ex, -22, 18, 24 + Math.sin(t * 30) * 2, 0, 0, Math.PI * 2);
+      ctx.ellipse(sd * 45, 40, 16, 34, sd * -0.2, 0, Math.PI * 2);
       ctx.fill();
     });
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(-32, -22, 4, 4);
-    ctx.fillRect(28, -22, 4, 4);
-    // lágrimas negras
-    ctx.strokeStyle = "rgba(0,0,0,0.8)";
-    ctx.lineWidth = 4;
-    [-30, 30].forEach((ex) => {
+    // grietas y venas
+    ctx.strokeStyle = "rgba(40,20,30,0.55)";
+    ctx.lineWidth = 1.5;
+    for (const pts of CRACKS) {
       ctx.beginPath();
-      ctx.moveTo(ex, 0);
-      ctx.quadraticCurveTo(ex + 4, 30, ex - 2, 70);
+      ctx.moveTo(pts[0][0], pts[0][1]);
+      for (const [px, py] of pts.slice(1)) ctx.lineTo(px, py);
       ctx.stroke();
+    }
+    // cuencas negras enormes, con un punto de luz al fondo
+    [-1, 1].forEach((sd) => {
+      const ex = sd * 32;
+      ctx.fillStyle = "rgba(20,10,10,0.6)";
+      ctx.beginPath();
+      ctx.ellipse(ex, -30, 30, 34, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#000";
+      ctx.beginPath();
+      ctx.ellipse(ex, -28, 20 + Math.sin(t * 40) * 1.5, 26, sd * 0.15, 0, Math.PI * 2);
+      ctx.fill();
+      // goteo negro
+      ctx.beginPath();
+      ctx.moveTo(ex - 4, -6);
+      ctx.quadraticCurveTo(ex - 5, 30, ex - 1.5, 50 + t * 50);
+      ctx.lineTo(ex + 1.5, 50 + t * 50);
+      ctx.quadraticCurveTo(ex + 3, 25, ex + 5, -6);
+      ctx.fill();
+      ctx.shadowColor = "#ff2020";
+      ctx.shadowBlur = 15;
+      ctx.fillStyle = "#ff4a3a";
+      ctx.beginPath();
+      ctx.arc(ex + sd * 2, -30, 2.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
     });
-    // boca
-    ctx.fillStyle = "#0a0000";
+    // boca desencajada
+    const open = 55 + Math.sin(t * 28) * 8 + Math.min(t * 40, 25);
+    ctx.fillStyle = "#1a0303";
     ctx.beginPath();
-    ctx.ellipse(0, 52, 22, 40 + Math.sin(t * 25) * 6, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 70, 26, open, 0, 0, Math.PI * 2);
     ctx.fill();
-    // mechones al frente
-    ctx.fillStyle = "#030303";
+    ctx.fillStyle = "#3a0606";
     ctx.beginPath();
-    ctx.moveTo(-90, -110);
-    ctx.quadraticCurveTo(-20, -130, 10, -100);
-    ctx.quadraticCurveTo(-50, -60, -70, 40);
-    ctx.lineTo(-100, 120);
-    ctx.closePath();
+    ctx.ellipse(0, 70 + open * 0.35, 14, open * 0.45, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(90, -110);
-    ctx.quadraticCurveTo(40, -120, 20, -100);
-    ctx.quadraticCurveTo(60, -50, 72, 60);
-    ctx.lineTo(100, 120);
-    ctx.closePath();
-    ctx.fill();
+    // dientes irregulares arriba y abajo
+    ctx.fillStyle = "#cfc6a8";
+    for (let i = -4; i <= 4; i++) {
+      const tx = i * 5.5;
+      const w = Math.cos((i / 4) * 1.2);
+      const top = 70 - open * Math.sqrt(Math.max(0, 1 - (tx / 26) ** 2));
+      const bot = 70 + open * Math.sqrt(Math.max(0, 1 - (tx / 26) ** 2));
+      ctx.beginPath();
+      ctx.moveTo(tx - 2.6, top);
+      ctx.lineTo(tx + 2.6, top);
+      ctx.lineTo(tx + 0.5, top + 10 * w + (i % 2 ? 4 : 0));
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(tx - 2.6, bot);
+      ctx.lineTo(tx + 2.6, bot);
+      ctx.lineTo(tx - 0.5, bot - 8 * w - (i % 2 ? 0 : 3));
+      ctx.fill();
+    }
+    // mechones mojados cayendo sobre la cara
+    ctx.strokeStyle = "#030303";
+    ctx.lineCap = "round";
+    for (const l of LOCKS) {
+      const wv = Math.sin(t * 5 + l.ph) * 5;
+      ctx.lineWidth = l.w;
+      ctx.beginPath();
+      ctx.moveTo(l.x * 0.5, -128);
+      ctx.bezierCurveTo(l.x + l.bend + wv, -50, l.x - l.bend * 0.6 - wv, 40, l.x * 1.15 + l.bend * 0.4 + wv, -125 + l.len);
+      ctx.stroke();
+    }
     ctx.restore();
   }
 
@@ -1738,6 +2178,14 @@
     ctx.fillRect(0, 0, W, H);
     const s = (Math.min(W, H) / 300) * (0.6 + Math.min(k * 3, 0.9));
     drawFace(W / 2 + (Math.random() - 0.5) * 30, H / 2 + (Math.random() - 0.5) * 30, s, k);
+    // franjas desplazadas (interferencia de video)
+    for (let i = 0; i < 6; i++) {
+      const sy = Math.random() * canvas.height;
+      const sh = rand(4, 30) * DPR;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.drawImage(canvas, 0, sy, canvas.width, sh, rand(-40, 40) * DPR, sy, canvas.width, sh);
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    }
     if (k < 0.1) {
       ctx.fillStyle = "rgba(255,255,255,0.8)";
       ctx.fillRect(0, 0, W, H);
@@ -1891,7 +2339,10 @@
     if (state === "playing") update(dt);
     else if (state === "caught") {
       G.caughtTimer += dt;
-      if (G.caughtTimer > 1.7) state = "gameover";
+      if (G.caughtTimer > 1.7) {
+        Sound.setLevels(0, 0);
+        state = "gameover";
+      }
     }
     render();
     requestAnimationFrame(frame);
@@ -1908,6 +2359,7 @@
         return state;
       },
       churchDoor,
+      Sound,
     };
   }
 })();

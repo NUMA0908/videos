@@ -22,7 +22,8 @@ las 05:00 (unos 8 minutos reales). La Llorona no puede entrar en el terreno sagr
 
 - **Linterna con batería:** ilumina un cono, pero ella te ve desde más lejos. Busca pilas (+45 %).
   Con poca batería parpadea y alumbra menos.
-- **Aliento:** correr gasta aliento. Si se acaba, quedas agotado y vas más lento hasta recuperarte.
+- **Aliento:** correr gasta aliento (aguanta unos 10 s seguidos y se recupera rápido). Si se acaba, quedas
+  agotado y vas más lento hasta recuperarte.
 - **Ruido:** correr y chapotear en el río hacen ruido, y ella va a investigar. Caminar hace poco ruido.
 - **Escondites:** en un arbusto, quieto y con la luz apagada, no te ve (salvo que te pase encima).
 - **La Llorona:** vaga por el río, acecha y te persigue si te ve. Los árboles y las paredes le tapan
@@ -31,6 +32,10 @@ las 05:00 (unos 8 minutos reales). La Llorona no puede entrar en el terreno sagr
 - **Niños:** te siguen en fila. Si ella toca a uno, se lo lleva y vuelve a perderse en otro lugar.
 - **Miedo:** cuando está cerca oyes latidos, la pantalla se pone roja, hay interferencia y la
   linterna falla.
+- **Sonido:** los pasos suenan distinto en hierba, madera (puentes y casas), tierra, arbustos y agua.
+  La Llorona alterna lamentos, llanto entrecortado, quejidos distorsionados y susurros. De fondo
+  hay río, búhos, grillos, ranas, ramas que se quiebran, aullidos y ráfagas de viento, y unas
+  cuerdas disonantes que suben cuando ella se acerca. Cada niño tiene su propia voz.
 - Cada partida genera un mapa nuevo: río con puentes, casas abandonadas, bosque y cementerio.
 
 ## Desarrollo
