@@ -19,7 +19,7 @@ src/
 public/<marca>/{logo,screenshots,audio,fonts}/
 scripts/render-all.mjs      # renderiza todas las composiciones
 juegos/                     # SECCIÓN APARTE: juegos web independientes (no Remotion)
-  la-llorona/               # juego de terror en canvas + Web Audio (abrir index.html)
+  la-llorona/               # juego de terror en canvas + Web Audio (abrir index.html; ver su README)
 ```
 
 `juegos/` está separado del estudio de videos: no usa Remotion, no importa nada de `src/` y no le
