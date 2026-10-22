@@ -241,7 +241,46 @@ Siete lecciones con un muñeco que repite patrones; cada una añade una idea:
 Tras cada fallo dice el porqué: "¡Muy pronto! Por N frames", "¡Tarde! Por N frames", "Altura incorrecta"…
 Un test simula cada lección y comprueba que el ataque conecta y que existe un timing que la supera.
 
-## 10. Frame data completa
+## 10. Game feel ("juice", con moderación)
+
+Todo vive fuera de la simulación (`src/render/effects.ts`, `src/audio/Audio.ts`): reaccionan a `state.events`
+y usan su propio azar. Regla de oro: **el fuerte tiene que destacar sobre el ligero**; si todo explota, nada pesa.
+
+| Elemento | Ligero | Fuerte | Súper / KO |
+|---|---|---|---|
+| Hitstop (ambos congelados) | 4 f (~67 ms) | 9–10 f (~150–170 ms) | 5 f por golpe, el último +12; KO ≥ 14 f |
+| Counter hit | +2 f de hitstop, anillo rojo, "COUNTER", campanita | igual | — |
+| Sacudida de cámara | 2,5 px / 5 f | 6 px / 10 f | 9–12 px / 14–22 f |
+| Chispas | 7 | 14 + anillo | 22–30 + destello de pantalla |
+| Bloqueo | chispas azules pequeñas, golpe sordo, sacudida mínima | | |
+
+- Las chispas salen del **punto exacto de impacto** (intersección hitbox/hurtbox) y hacia el lado contrario al atacante.
+- **Flash blanco** intermitente del personaje golpeado durante el hitstop y vibración horizontal del sprite.
+- **Estela** (smear) de la extremidad que golpea durante los frames activos: blanca en normales, del color de
+  energía en especiales.
+- **Anticipación**: los especiales con proyectil concentran energía en las manos durante el startup; las poses
+  de carga (windup) se sostienen para que el golpe se vea venir. **Follow-through**: pose de recuperación antes
+  de volver a la guardia.
+- **Polvo** al saltar, aterrizar, hacer dash y caer derribado.
+- **Parry**: contorno blanco-azulado, anillo + esquirlas, destello de pantalla breve y un "ting" metálico
+  inconfundible (distinto del red parry, más grave y rojo).
+- **Súper**: congelamiento de 40 frames con zoom, oscurecido del escenario, contorno de energía y líneas de velocidad.
+- **KO**: cámara lenta (30 % durante 50 ticks: el bucle ejecuta menos ticks, la lógica de cada tick no cambia),
+  zoom al derribado, destello y "K.O.".
+
+### Sonido en capas (todo sintetizado)
+- Golpe = impacto grave (seno con caída de tono) + "clack" agudo (onda cuadrada/triángulo muy corta) + ruido filtrado.
+- Bloqueo = golpe sordo y apagado; parry = campanas agudas (2 kHz) con eco; counter = campanita extra;
+  proyectil = barrido de ruido + diente de sierra ascendente; súper = barrido largo; KO = estruendo grave con eco.
+- Panorama estéreo según la posición en pantalla y ligera variación de tono aleatoria para no cansar.
+- Música en bucle por escenario (secuenciador propio): "muelle" con aire de merengue (güira constante),
+  "azotea" synthwave, "plaza" con guitarra arpegiada, y tema de menú.
+
+### Accesibilidad
+- Opciones para **desactivar la sacudida** y **los destellos** (el flash blanco del golpe se sustituye por un
+  contorno tenue; sin destellos de pantalla).
+
+## 11. Frame data completa
 
 Columnas "Bloqueo", "Hit" y "CH" = ventaja en frames si el primer frame activo conecta.
 "—" = no aplica (derriba o es un agarre). "altura" = ataques en salto: la ventaja depende de lo cerca

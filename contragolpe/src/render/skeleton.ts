@@ -51,6 +51,8 @@ export interface Joints {
   shinB: number;
   torsoAngle: number;
   headAngle: number;
+  /** 0..1 mano abierta. */
+  open: number;
 }
 
 const RAD = Math.PI / 180;
@@ -98,7 +100,7 @@ export function solve(p: Pose, look: CharacterLook): Joints {
 
   const j: Joints = {
     hip, neck, head, shF, shB, elF, elB, haF, haB, hiF, hiB, knF, knB, ftF, ftB,
-    shinF: p.lF[1], shinB: p.lB[1], torsoAngle: p.torso + p.rot, headAngle: p.torso + p.head + p.rot,
+    shinF: p.lF[1], shinB: p.lB[1], torsoAngle: p.torso + p.rot, headAngle: p.torso + p.head + p.rot, open: p.open,
   };
 
   const pts: Vec[] = [j.hip, j.neck, j.head, j.shF, j.shB, j.elF, j.elB, j.haF, j.haB, j.hiF, j.hiB, j.knF, j.knB, j.ftF, j.ftB];
@@ -206,7 +208,7 @@ export function drawFighterBody(ctx: CanvasRenderingContext2D, j: Joints, look: 
   // Brazo trasero
   capsule(ctx, j.shB, j.elB, lw * 1.05, armUpper(true), outline, ow);
   capsule(ctx, j.elB, j.haB, lw * 0.95, col(pal.skin, backK), outline, ow);
-  circle(ctx, j.haB, lw * 0.62, col(pal.gloves, backK), outline, ow);
+  hand(ctx, j.elB, j.haB, lw * 0.62, j.open, col(pal.gloves, backK), outline, ow);
 
   // Pierna trasera
   capsule(ctx, j.hiB, j.knB, lw * 1.45, col(pal.pantsShade), outline, ow);
@@ -285,7 +287,20 @@ export function drawFighterBody(ctx: CanvasRenderingContext2D, j: Joints, look: 
   const armF = col(sleeves === "none" ? pal.skin : pal.top);
   capsule(ctx, j.shF, j.elF, lw * 1.1, armF, outline, ow);
   capsule(ctx, j.elF, j.haF, lw, col(pal.skin), outline, ow);
-  circle(ctx, j.haF, lw * 0.68, col(pal.gloves), outline, ow);
+  hand(ctx, j.elF, j.haF, lw * 0.68, j.open, col(pal.gloves), outline, ow);
+}
+
+/** Puño (círculo) o palma abierta (cápsula plana en la dirección del antebrazo). */
+function hand(ctx: CanvasRenderingContext2D, elbow: Vec, wrist: Vec, r: number, open: number, color: string, outline: string, ow: number): void {
+  if (open < 0.5) {
+    circle(ctx, wrist, r, color, outline, ow);
+    return;
+  }
+  const dx = wrist.x - elbow.x;
+  const dy = wrist.y - elbow.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const tip = { x: wrist.x + (dx / len) * r * 1.9, y: wrist.y + (dy / len) * r * 1.9 };
+  capsule(ctx, wrist, tip, r * 1.25, color, outline, ow);
 }
 
 function drawHair(

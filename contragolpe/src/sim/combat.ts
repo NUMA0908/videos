@@ -2,7 +2,7 @@ import { getChar } from "../data/characters";
 import type { Guard, MoveData, Strength } from "../data/types";
 import { TUNING } from "../data/tuning";
 import { moveOf } from "./actions";
-import { activeHitboxes, anyOverlap, hurtboxes, isAirborne } from "./boxes";
+import { activeHitboxes, hurtboxes, isAirborne, overlaps, type WorldBox } from "./boxes";
 import { setState } from "./fighter";
 import { pct, px, sign } from "./fixed";
 import { Btn, inputAt } from "./input";
@@ -30,6 +30,8 @@ export interface Strike {
   fromX: number;
   projectile: boolean;
   move?: string;
+  /** Punto de impacto (centro de la intersección de cajas), para efectos. */
+  at?: { x: number; y: number };
 }
 
 export function strikeFromMove(atk: FighterState, mv: MoveData): Strike {
@@ -181,8 +183,8 @@ export function applyHit(s: GameState, atk: FighterState | null, def: FighterSta
   s.events.push({
     type: "hit",
     side: atk ? atk.side : ((1 - def.side) as Side),
-    x: def.x,
-    y: def.y + px(110),
+    x: st.at?.x ?? def.x,
+    y: st.at?.y ?? def.y + px(110),
     strength: st.strength,
     counter,
     damage: dmg,
@@ -214,8 +216,8 @@ export function applyBlock(s: GameState, atk: FighterState | null, def: FighterS
   s.events.push({
     type: "block",
     side: atk ? atk.side : ((1 - def.side) as Side),
-    x: def.x,
-    y: def.y + px(crouch ? 70 : 110),
+    x: st.at?.x ?? def.x,
+    y: st.at?.y ?? def.y + px(crouch ? 70 : 110),
     strength: st.strength,
   });
   if (def.health <= 0) {
@@ -248,6 +250,18 @@ export function strikeCanTouch(def: FighterState, st: Strike): boolean {
   return true;
 }
 
+/** Centro (entero) de la primera intersección entre dos listas de cajas, o null. */
+export function overlapPoint(as: WorldBox[], bs: WorldBox[]): { x: number; y: number } | null {
+  for (const a of as) {
+    for (const b of bs) {
+      if (overlaps(a, b)) {
+        return { x: (Math.max(a.x0, b.x0) + Math.min(a.x1, b.x1)) >> 1, y: (Math.max(a.y0, b.y0) + Math.min(a.y1, b.y1)) >> 1 };
+      }
+    }
+  }
+  return null;
+}
+
 interface PendingStrike {
   atk: Side;
   hit: number;
@@ -269,8 +283,9 @@ export function resolveStrikes(s: GameState): void {
     if (!strikeCanTouch(def, st)) continue;
     const hurt = hurtboxes(def);
     for (const g of groups) {
-      if (anyOverlap(g.boxes, hurt)) {
-        pending.push({ atk: side, hit: g.hit, strike: st });
+      const at = overlapPoint(g.boxes, hurt);
+      if (at) {
+        pending.push({ atk: side, hit: g.hit, strike: { ...st, at } });
         break;
       }
     }

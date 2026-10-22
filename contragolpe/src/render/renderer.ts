@@ -1,4 +1,4 @@
-import { getChar } from "../data/characters";
+import { getChar, getMove } from "../data/characters";
 import { toPx } from "../sim/fixed";
 import type { FighterState, GameState } from "../sim/types";
 import { poseFor } from "./animator";
@@ -81,6 +81,26 @@ export function drawFighter(
     ctx.restore();
   }
   drawFighterBody(ctx, joints, ch.look, pal, { flash: fx.flash });
+  // Anticipación de especiales: la energía se concentra en las manos.
+  if (f.state === "attack" && f.move) {
+    const mv = getMove(f.char, f.move);
+    if ((mv.kind === "special" || mv.kind === "super") && mv.projectile && f.mf <= mv.startup + 2) {
+      const k = Math.min(1, f.mf / Math.max(1, mv.startup));
+      const hx = (joints.haF.x + joints.haB.x) / 2;
+      const hy = -(joints.haF.y + joints.haB.y) / 2;
+      const r = (mv.kind === "super" ? 34 : 18) * k + 4;
+      ctx.globalCompositeOperation = "lighter";
+      const g = ctx.createRadialGradient(hx, hy, 0, hx, hy, r);
+      g.addColorStop(0, pal.energyCore);
+      g.addColorStop(0.4, pal.energy);
+      g.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(hx, hy, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalCompositeOperation = "source-over";
+    }
+  }
   ctx.restore();
 }
 

@@ -1,3 +1,4 @@
+import { AudioEngine } from "../audio/Audio";
 import { InputManager } from "../input/InputManager";
 import { fitCanvas } from "../render/renderer";
 import { VIEW_H, VIEW_W } from "../render/view";
@@ -11,6 +12,7 @@ export class App {
   readonly input: InputManager;
   readonly settings: Settings;
   readonly loop: FixedLoop;
+  readonly audio = new AudioEngine();
   scene: Scene | null = null;
   /** Reloj de presentación (segundos) para animaciones de fondo. */
   time = 0;
@@ -28,6 +30,13 @@ export class App {
       () => this.tick(),
       () => this.draw(),
     );
+    // El audio solo puede arrancar tras un gesto del usuario.
+    const unlock = () => {
+      this.audio.unlock();
+      this.audio.setVolumes(this.settings.sfxVolume, this.settings.musicVolume);
+    };
+    window.addEventListener("keydown", unlock);
+    window.addEventListener("pointerdown", unlock);
     const resize = () => (this.scale = fitCanvas(canvas));
     window.addEventListener("resize", resize);
     resize();
@@ -46,6 +55,7 @@ export class App {
   private tick(): void {
     this.time += 1 / 60;
     this.input.poll();
+    if (this.input.anyPadPressed()) this.audio.unlock();
     if (this.input.keyPressed("F3")) this.showFps = !this.showFps;
     this.scene?.update();
     this.input.endTick();

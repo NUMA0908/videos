@@ -49,7 +49,8 @@ export function strikeFromProjectile(p: ProjectileState, pd: ProjectileData): St
     chip: pd.chip,
     hitstun: pd.hitstun,
     blockstun: pd.blockstun,
-    hitstop: pd.hitstop,
+    // El golpe final de un multi-hit "truena": más congelamiento.
+    hitstop: pd.finalKnockdown && last ? pd.hitstop + 12 : pd.hitstop,
     pushback: pd.pushback,
     guard: pd.guard,
     strength: pd.hits > 1 ? "super" : "heavy",
@@ -109,7 +110,7 @@ export function resolveProjectiles(s: GameState, parry: (s: GameState, def: Figh
     const def = s.fighters[p.owner === 0 ? 1 : 0];
     const owner = s.fighters[p.owner];
     const pd = projectileData(s, p);
-    const st = strikeFromProjectile(p, pd);
+    const st = { ...strikeFromProjectile(p, pd), at: { x: p.x, y: p.y } };
     if (!strikeCanTouch(def, st)) continue;
     if (!anyOverlap([projectileBox(s, p)], hurtboxes(def))) continue;
     p.hits--;

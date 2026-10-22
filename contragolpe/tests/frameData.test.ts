@@ -111,3 +111,17 @@ describe("riesgo y recompensa", () => {
   });
 });
 
+
+describe("presupuesto de game feel", () => {
+  it("hitstop proporcional: ligeros 3–5 frames, fuertes 8–11", () => {
+    for (const ch of [getChar("rayo")]) {
+      for (const m of Object.values(ch.moves)) {
+        if (m.kind !== "normal") continue;
+        if (m.strength === "light") expect(m.hitstop, m.id).toBeGreaterThanOrEqual(3);
+        if (m.strength === "light") expect(m.hitstop, m.id).toBeLessThanOrEqual(5);
+        if (m.strength === "heavy") expect(m.hitstop, m.id).toBeGreaterThanOrEqual(8);
+        if (m.strength === "heavy") expect(m.hitstop, m.id).toBeLessThanOrEqual(11);
+      }
+    }
+  });
+});

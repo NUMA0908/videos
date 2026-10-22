@@ -91,7 +91,7 @@ export function tryParry(s: GameState, atk: FighterState | null, def: FighterSta
     atk.sinceContact = 0;
     atk.extraRecovery += TUNING.parry.attackerExtraRecovery;
   }
-  s.events.push({ type: red ? "redParry" : "parry", side: def.side, x: def.x, y: def.y + (low ? 6000 : 11000) });
+  s.events.push({ type: red ? "redParry" : "parry", side: def.side, x: st.at?.x ?? def.x, y: st.at?.y ?? def.y + (low ? 6000 : 11000) });
   return true;
 }
 

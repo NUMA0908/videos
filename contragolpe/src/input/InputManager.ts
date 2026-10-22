@@ -101,6 +101,11 @@ export class InputManager {
     }
   }
 
+  anyPadPressed(): boolean {
+    for (let i = 0; i < 4; i++) for (let b = 0; b < (this.padNow[i]?.length ?? 0); b++) if (this.padPressed(i, b)) return true;
+    return false;
+  }
+
   padConnected(i: number): boolean {
     return this.padNow[i]?.length > 0;
   }
