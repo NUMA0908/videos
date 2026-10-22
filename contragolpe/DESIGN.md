@@ -490,6 +490,33 @@ cruceta y stick produce la misma secuencia de bitmasks y el mismo estado final d
   mando, B en cada pantalla, A mantenido, la pausa con Enter, desconexión/reconexión/teclado en plena partida
   y la pantalla de unión (dos mandos y teclado + mando con su juego de teclas).
 
+### Íconos y vibración (fase 4)
+- **Íconos dibujados por código** (`src/ui/glyphs.ts`, sin arte de terceros): Xbox = círculos con la letra en
+  su color; PlayStation = cruz, círculo, cuadrado y triángulo **dibujados como figuras** (no tipografía);
+  Switch = letras según la posición física; genérico = rombo de cuatro puntos con el botón marcado (no se sabe
+  qué letra lleva); hombros y gatillos con su nombre (LB/L1/L…); cruceta con el brazo marcado; teclado = tecla
+  con su letra. Mandos no estándar: "B3", "Eje 2+", "Cruceta (hat)".
+- `drawRich` sustituye tokens (`{LP}`, `{P}` = LP/HP, `{PARRY}`, `{ACCEPT}`, `{BACK}`, `{PAUSE}`, `{UPDOWN}`…)
+  por el ícono del **botón realmente asignado** en el perfil (si se remapea, los íconos cambian).
+  - Menús y barras de ayuda: el **último dispositivo usado** (`input.lastDevice`: pulsar una tecla cambia a
+    teclado, tocar el mando cambia al mando).
+  - Lista de movimientos (también la de la pausa, con los consejos) y el trial de parry: el dispositivo del J1.
+- **Vibración** (`src/input/rumble.ts`): `vibrationActuator.playEffect("dual-rumble")` si existe; si no, nada
+  (sin errores: también se capturan excepciones y promesas rechazadas). Vive en la capa de efectos: la llama
+  `FightScene` con los eventos del tick, solo para lados humanos (`rumbleSides`), y nunca toca la simulación.
+  | Evento | Para quién | Grande / pequeño / ms |
+  |---|---|---|
+  | golpe ligero / fuerte / súper / contraataque | quien lo recibe | 0,22/0,38/70 · 0,6/0,45/140 · 0,85/0,6/220 · 0,75/0,55/170 |
+  | bloqueo | quien bloquea | 0,05/0,22/50 |
+  | parry y red parry | quien lo hace | 0/0,55/60 (seco, agudo) |
+  | súper | quien la lanza | 0,45/0,3/260 |
+  | agarre | quien lo sufre | 0,55/0,3/160 |
+  | KO | quien cae / quien gana | 1/0,8/480 · 0,25/0,25/200 |
+  - **No se acumula**: mientras dura una vibración, otra igual o más débil se ignora (los impactos de un golpe
+    múltiple durante el hitstop no encadenan vibraciones); una más fuerte la sustituye. La pausa la corta.
+  - Opciones: "Vibración del mando" (sí/no) e "Intensidad" (10–100 %, escala las magnitudes); al cambiarlas
+    vibra una vez de prueba.
+
 ## 18. App de escritorio (Electron)
 
 ### Decisión: Electron + electron-builder

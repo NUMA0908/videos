@@ -1,7 +1,9 @@
 import type { App } from "../app/App";
 import { DEFAULT_PAD_TUNING, PAD_TUNING_LIMITS, sanitizePadTuning, type PadTuning } from "../input/padTuning";
 import { drawPadLive } from "../ui/padView";
-import { drawBackdrop, drawFooter, drawMenu, drawPanel, drawTitle, type MenuItem } from "../ui/ui";
+import { VIEW_H, VIEW_W } from "../render/view";
+import { drawHintBar } from "../ui/glyphs";
+import { drawBackdrop, drawMenu, drawPanel, drawTitle, type MenuItem } from "../ui/ui";
 import type { Scene } from "./Scene";
 
 interface Opt extends MenuItem {
@@ -78,6 +80,6 @@ export class PadSettingsScene implements Scene {
     drawPanel(ctx, 530, 84, 390, 300, 0.85);
     drawPadLive(ctx, "J1", this.app.input.reader(0), t, 628, 104);
     drawPadLive(ctx, "J2", this.app.input.reader(1), t, 822, 104);
-    drawFooter(ctx, "Cruceta ↑↓ elegir · ←→ ajustar · B/Esc volver · el stick solo se muestra (no mueve el menú)");
+    drawHintBar(ctx, this.app, "{UPDOWN} elegir · {LEFTRIGHT} ajustar · {BACK} volver · el stick solo se muestra (no mueve el menú)", VIEW_W, VIEW_H);
   }
 }

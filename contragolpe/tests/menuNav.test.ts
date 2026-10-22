@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { App } from "../src/app/App";
 import { defaultSettings } from "../src/app/settings";
 import { PadButton } from "../src/input/gamepad";
+import { Rumbler } from "../src/input/rumble";
 import type { InputManager } from "../src/input/InputManager";
 import { nav } from "../src/scenes/nav";
 import type { Scene } from "../src/scenes/Scene";
@@ -15,6 +16,7 @@ class FakeApp {
   loop = { timeScale: 1 };
   ctx = {} as CanvasRenderingContext2D;
   audio = { play() {}, playMusic() {}, setVolumes() {}, duck() {}, unlock() {} };
+  rumble = new Rumbler();
   constructor(readonly input: InputManager) {}
   setScene(s: Scene): void {
     this.scene?.exit?.();

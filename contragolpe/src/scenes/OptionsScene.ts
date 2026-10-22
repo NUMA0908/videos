@@ -4,7 +4,8 @@ import { defaultSettings } from "../app/settings";
 import { TUNING, type ParryDifficulty } from "../data/tuning";
 import { ACTION_LABEL, ACTIONS, DEFAULT_KEYS, keyName, type Action } from "../input/bindings";
 import { assignKey } from "../input/remap";
-import { VIEW_W } from "../render/view";
+import { VIEW_H, VIEW_W } from "../render/view";
+import { drawHintBar } from "../ui/glyphs";
 import { drawBackdrop, drawFooter, drawMenu, drawPanel, drawText, drawTitle, UI, type MenuItem } from "../ui/ui";
 import { PadRemapScene } from "./PadRemapScene";
 import { PadSettingsScene } from "./PadSettingsScene";
@@ -88,6 +89,26 @@ export class OptionsScene implements Scene {
         hint: "Zona muerta e histéresis del stick, diagonales y umbral de los gatillos, con vista en vivo.",
       },
       {
+        label: "Vibración del mando",
+        value: s.rumble ? "Sí" : "No",
+        change: () => {
+          s.rumble = !s.rumble;
+          this.app.applyRumbleSettings();
+          this.app.testRumble();
+        },
+        hint: "Golpes recibidos, bloqueos, parry, súper y KO. Corta y proporcional al golpe.",
+      },
+      {
+        label: "Intensidad de vibración",
+        value: pct(s.rumbleIntensity),
+        disabled: !s.rumble,
+        change: (dir) => {
+          s.rumbleIntensity = Math.round(Math.max(0.1, Math.min(1, s.rumbleIntensity + dir * 0.1)) * 10) / 10;
+          this.app.applyRumbleSettings();
+          this.app.testRumble();
+        },
+      },
+      {
         label: "Botones del mando",
         act: () => this.app.setScene(new PadRemapScene(this.app, () => this.app.setScene(this))),
         hint: "Remapeo por tipo de mando (Xbox, PlayStation…) y configuración guiada para mandos no estándar.",
@@ -102,6 +123,7 @@ export class OptionsScene implements Scene {
           this.app.input.keys = s.keys;
           this.app.input.tuning = s.padTuning;
           this.app.input.profiles = s.padProfiles;
+          this.app.applyRumbleSettings();
           this.app.resize();
           this.app.audio.setVolumes(s.sfxVolume, s.musicVolume);
         },
@@ -196,7 +218,7 @@ export class OptionsScene implements Scene {
     const rows = Math.min(items.length, 10);
     drawPanel(ctx, VIEW_W / 2 - 300, 80, 600, rows * 36 + 24, 0.85);
     drawMenu(ctx, items, this.sel, VIEW_W / 2 - 270, 110, 540, this.app.time, 36, rows);
-    drawFooter(ctx, "↑↓ elegir · ←→ cambiar · Enter confirmar · Esc guardar y volver");
+    drawHintBar(ctx, this.app, "{UPDOWN} elegir · {LEFTRIGHT} cambiar · {ACCEPT} confirmar · {BACK} guardar y volver", VIEW_W, VIEW_H);
   }
 
   private renderControls(ctx: CanvasRenderingContext2D): void {

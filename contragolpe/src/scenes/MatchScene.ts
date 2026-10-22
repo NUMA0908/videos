@@ -14,6 +14,7 @@ import { drawInputLogs } from "../render/debug";
 import { getStage } from "../render/stages";
 import { VIEW_H, VIEW_W } from "../render/view";
 import { CHAR_STATS } from "../ui/charInfo";
+import { playerDevice } from "../ui/glyphs";
 import { drawCharacter, drawMenu, drawPanel, drawText, drawTitle, UI, type MenuItem } from "../ui/ui";
 import { FightScene } from "./FightScene";
 import { drawMoveList } from "./MoveListScene";
@@ -122,6 +123,7 @@ export class MatchScene implements Scene {
       this.fight.inputs[1] = (st) => this.dummyInput(st);
       this.fight.inputs[0] = () => (this.recording ? 0 : this.app.input.sample(0));
     }
+    this.fight.rumbleSides = [true, setup.p2 === "human"];
     this.fight.hud.labels = [setup.p2 === "human" ? "J1" : "TÚ", setup.p2 === "human" ? "J2" : setup.p2 === "cpu" ? `CPU ${CPU_LEVELS[setup.cpuLevel ?? 1].name}` : "MUÑECO"];
     this.fight.onMatchOver = () => undefined;
     this.fight.overlay = (ctx) => this.drawOverlay(ctx);
@@ -142,6 +144,7 @@ export class MatchScene implements Scene {
     this.pauseOpen = true;
     this.pauseSel = 0;
     this.fight.paused = true;
+    this.fight.stopRumble();
   }
 
   exit(): void {
@@ -204,6 +207,7 @@ export class MatchScene implements Scene {
       this.pauseOpen = true;
       this.pauseSel = 0;
       this.fight.paused = true;
+      this.fight.stopRumble();
     }
     if (this.splash > 0) {
       this.splash--;
@@ -232,6 +236,7 @@ export class MatchScene implements Scene {
       this.pauseOpen = true;
       this.pauseSel = 0;
       this.fight.paused = true;
+      this.fight.stopRumble();
       this.app.audio.play("select");
       input.consume(); // el mismo botón no puede elegir ya una opción de la pausa
       return;
@@ -445,7 +450,7 @@ export class MatchScene implements Scene {
       drawPanel(ctx, VIEW_W / 2 - 230, 140, 460, rows * 36 + 24, 0.9);
       drawMenu(ctx, items, this.pauseSel, VIEW_W / 2 - 200, 170, 400, this.app.time, 36, rows);
     }
-    if (this.moveListFor) drawMoveList(ctx, this.moveListFor, this.setup.mode === "training");
+    if (this.moveListFor) drawMoveList(ctx, this.moveListFor, this.setup.mode === "training", playerDevice(this.app, 0));
     this.padLost.draw(ctx);
     if (s.round.phase === "over" && s.round.t > 100) this.drawResults(ctx);
   }

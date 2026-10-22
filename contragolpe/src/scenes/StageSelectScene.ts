@@ -2,7 +2,8 @@ import type { App } from "../app/App";
 import { Camera } from "../render/camera";
 import { STAGES } from "../render/stages";
 import { VIEW_H, VIEW_W } from "../render/view";
-import { drawBackdrop, drawFooter, drawText, drawTitle, UI } from "../ui/ui";
+import { drawHintBar } from "../ui/glyphs";
+import { drawBackdrop, drawText, drawTitle, UI } from "../ui/ui";
 import type { MatchSetup } from "./MatchScene";
 import { nav } from "./nav";
 import type { Scene } from "./Scene";
@@ -86,6 +87,6 @@ export class StageSelectScene implements Scene {
       ctx.lineWidth = i === this.sel ? 4 : 2;
       ctx.strokeRect(x - 75, y - 42, 150, 84);
     }
-    drawFooter(ctx, "←→ elegir · Enter confirmar · Esc volver");
+    drawHintBar(ctx, this.app, "{LEFTRIGHT} elegir · {ACCEPT} confirmar · {BACK} volver", VIEW_W, VIEW_H);
   }
 }

@@ -50,6 +50,8 @@ export class FightScene implements Scene {
   inputs: [InputSource | null, InputSource | null] = [null, null];
   /** Se llama tras cada tick (modos de juego que observan los eventos). */
   onTick: ((s: GameState) => void) | null = null;
+  /** Lados controlados por personas (vibran sus mandos; la CPU y el muñeco no). */
+  rumbleSides: [boolean, boolean] = [true, true];
   /** Dibujo extra encima del HUD. */
   overlay: ((ctx: CanvasRenderingContext2D) => void) | null = null;
   paused = false;
@@ -87,6 +89,7 @@ export class FightScene implements Scene {
 
   exit(): void {
     this.app.loop.timeScale = 1;
+    this.stopRumble();
   }
 
   restart(seed = 1): void {
@@ -124,10 +127,24 @@ export class FightScene implements Scene {
     this.hud.update(s);
     this.react(s);
     this.fx.onEvents(s, s.events);
+    if (s.events.length) this.rumble(s);
     this.trackSmears(s);
     this.fx.update();
     this.updateCamera(s);
     this.onTick?.(s);
+  }
+
+  /** Vibración: solo los mandos de los lados humanos, con el reloj de presentación (fuera de la simulación). */
+  private rumble(s: GameState): void {
+    const input = this.app.input;
+    const pad = (side: 0 | 1) => (this.rumbleSides[side] ? (input.reader(side)?.pad ?? null) : null);
+    this.app.rumble.onEvents(s.events, [pad(0), pad(1)], this.app.time * 1000);
+  }
+
+  /** Corta la vibración (pausa, fin de la partida). */
+  stopRumble(): void {
+    const input = this.app.input;
+    this.app.rumble.stop([input.reader(0)?.pad ?? null, input.reader(1)?.pad ?? null]);
   }
 
   /** Sonido, rótulos y cámara lenta según los eventos del tick. */

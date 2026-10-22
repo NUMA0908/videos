@@ -2,7 +2,8 @@ import type { App } from "../app/App";
 import { desktop } from "../app/desktop";
 import { CHARACTERS } from "../data/characters";
 import { FONT_IMPACT, VIEW_H, VIEW_W } from "../render/view";
-import { drawBackdrop, drawCharacter, drawFooter, drawMenu, drawText, UI, type MenuItem } from "../ui/ui";
+import { drawHintBar } from "../ui/glyphs";
+import { drawBackdrop, drawCharacter, drawMenu, drawText, UI, type MenuItem } from "../ui/ui";
 import { nav } from "./nav";
 import type { Scene } from "./Scene";
 
@@ -90,6 +91,6 @@ export class TitleScene implements Scene {
     drawText(ctx, "Juego de peleas 2D · parry, combos y mucho contragolpe", 262, 140, { size: 15, color: UI.dim, align: "center" });
 
     drawMenu(ctx, ITEMS, this.sel, 80, 205, 330, time, 40);
-    drawFooter(ctx, "↑↓ elegir · Enter / J confirmar · F1 debug en combate · F3 FPS");
+    drawHintBar(ctx, this.app, "{UPDOWN} elegir · {ACCEPT} aceptar · F1 cajas en combate · F3 FPS", VIEW_W, VIEW_H);
   }
 }

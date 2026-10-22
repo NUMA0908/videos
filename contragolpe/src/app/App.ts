@@ -1,6 +1,7 @@
 import { AudioEngine } from "../audio/Audio";
 import { InputManager, type PadEvent } from "../input/InputManager";
 import { PAD_KIND_LABEL, detectPadKind } from "../input/padKind";
+import { RUMBLE, Rumbler } from "../input/rumble";
 import { fitCanvas } from "../render/renderer";
 import { FONT, VIEW_H, VIEW_W } from "../render/view";
 import type { Scene } from "../scenes/Scene";
@@ -15,6 +16,8 @@ export class App {
   readonly settings: Settings;
   readonly loop: FixedLoop;
   readonly audio = new AudioEngine();
+  /** Vibración de los mandos (capa de efectos, fuera de la simulación). */
+  readonly rumble = new Rumbler();
   scene: Scene | null = null;
   /** Reloj de presentación (segundos) para animaciones de fondo. */
   time = 0;
@@ -58,6 +61,7 @@ export class App {
     this.input = new InputManager(this.settings.keys, this.settings.padProfiles);
     // Misma referencia: lo que se ajuste en Opciones se aplica al instante.
     this.input.tuning = this.settings.padTuning;
+    this.applyRumbleSettings();
     this.input.attach(window);
     this.loop = new FixedLoop(
       () => this.tick(),
@@ -92,6 +96,17 @@ export class App {
     // Altas y bajas de mandos: solo para el registro (el juego las detecta sondeando en cada tick).
     window.addEventListener("gamepadconnected", (e) => desktop?.log?.("info", `Mando conectado: ${(e as GamepadEvent).gamepad.id}`));
     window.addEventListener("gamepaddisconnected", (e) => desktop?.log?.("info", `Mando desconectado: ${(e as GamepadEvent).gamepad.id}`));
+  }
+
+  applyRumbleSettings(): void {
+    this.rumble.enabled = this.settings.rumble;
+    this.rumble.intensity = this.settings.rumbleIntensity;
+  }
+
+  /** Vibración de prueba en el mando con el que se navega (Opciones). */
+  testRumble(): void {
+    const i = this.input.lastDevice;
+    if (i >= 0) this.rumble.play(this.input.readers[i].pad, 0, RUMBLE.hitHeavy, this.time * 1000, true);
   }
 
   setScene(scene: Scene): void {
@@ -176,9 +191,11 @@ export class App {
       ctx.font = `bold 15px ${FONT}`;
       const w = ctx.measureText(this.toastText).width + 32;
       // En partida, bajo el marcador; en los menús, sobre la barra de ayuda inferior.
-      const y = this.isGameplay() ? 150 : VIEW_H - 30;
-      ctx.fillStyle = "rgba(8,10,28,0.92)";
-      ctx.fillRect(VIEW_W / 2 - w / 2, y, w, 30);
+      const playing = this.isGameplay();
+      const y = playing ? 150 : VIEW_H - 30;
+      ctx.fillStyle = "rgba(8,10,28,0.96)";
+      if (playing) ctx.fillRect(VIEW_W / 2 - w / 2, y, w, 30);
+      else ctx.fillRect(0, y, VIEW_W, 30);
       ctx.fillStyle = "#7fe3ff";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";

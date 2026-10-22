@@ -25,6 +25,9 @@ export interface Settings {
   confirmQuit: boolean;
   /** Bajo consumo: menos partículas, sin brillos caros y lienzo a 1× (portátiles, equipos modestos). */
   lowPower: boolean;
+  /** Vibración del mando y su intensidad (0..1). */
+  rumble: boolean;
+  rumbleIntensity: number;
   /** Zona muerta, histéresis, diagonales y gatillos del mando (ver `input/padTuning.ts`). */
   padTuning: PadTuning;
   keys: [KeyBindings, KeyBindings];
@@ -51,6 +54,8 @@ export function defaultSettings(): Settings {
     pauseOnBlur: true,
     confirmQuit: true,
     lowPower: false,
+    rumble: true,
+    rumbleIntensity: 0.8,
     padTuning: { ...DEFAULT_PAD_TUNING },
     keys: structuredClone(DEFAULT_KEYS),
     padProfiles: {},
@@ -86,6 +91,7 @@ export function parseSettings(raw: unknown): Settings {
   const s = out as unknown as Settings;
   s.musicVolume = Math.max(0, Math.min(1, s.musicVolume));
   s.sfxVolume = Math.max(0, Math.min(1, s.sfxVolume));
+  s.rumbleIntensity = Number.isFinite(s.rumbleIntensity) ? Math.round(Math.max(0, Math.min(1, s.rumbleIntensity)) * 10) / 10 : base.rumbleIntensity;
   if (!["easy", "normal", "hardcore"].includes(s.parry)) s.parry = base.parry;
   if (![0, 1, 2].includes(s.cpuLevel)) s.cpuLevel = base.cpuLevel;
   s.padTuning = sanitizePadTuning(r.padTuning);

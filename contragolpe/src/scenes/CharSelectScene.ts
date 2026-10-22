@@ -3,7 +3,8 @@ import { CPU_LEVELS } from "../ai/cpu";
 import { CHARACTERS } from "../data/characters";
 import { VIEW_H, VIEW_W } from "../render/view";
 import { CHAR_STATS } from "../ui/charInfo";
-import { drawBackdrop, drawCharacter, drawFooter, drawPanel, drawStat, drawText, drawTitle, UI } from "../ui/ui";
+import { drawHintBar } from "../ui/glyphs";
+import { drawBackdrop, drawCharacter, drawPanel, drawStat, drawText, drawTitle, UI } from "../ui/ui";
 import { nav } from "./nav";
 import type { Scene } from "./Scene";
 
@@ -190,16 +191,16 @@ export class CharSelectScene implements Scene {
     });
 
     // Instrucción del paso actual
-    let msg = "←→ elegir · Enter/J confirmar · Esc/K volver";
-    if (this.twoPlayers) msg = "J1: A/D + J · J2: ←/→ + Num4 · Esc volver";
-    else if (this.step === 1) msg = this.mode === "training" ? "Ahora elige al MUÑECO (←→, Enter)" : "Ahora elige al rival de la CPU (←→, Enter)";
+    let msg = "{LEFTRIGHT} elegir · {ACCEPT} confirmar · {BACK} volver";
+    if (this.twoPlayers) msg = "Cada jugador: {LEFTRIGHT} elegir · {ACCEPT} confirmar · {BACK} volver";
+    else if (this.step === 1) msg = this.mode === "training" ? "Ahora elige al MUÑECO: {LEFTRIGHT} y {ACCEPT}" : "Ahora elige al rival de la CPU: {LEFTRIGHT} y {ACCEPT}";
     if (this.step === 2) {
       drawPanel(ctx, VIEW_W / 2 - 170, 400, 340, 70, 0.9);
       drawText(ctx, "Dificultad de la CPU", VIEW_W / 2, 420, { size: 15, color: UI.dim, align: "center" });
       drawText(ctx, `◀ ${CPU_LEVELS[this.app.settings.cpuLevel].name} ▶`, VIEW_W / 2, 448, { size: 24, color: UI.accent, align: "center", bold: true });
-      msg = "←→ cambiar · Enter empezar";
+      msg = "{LEFTRIGHT} cambiar · {ACCEPT} empezar";
     }
-    drawFooter(ctx, msg);
+    drawHintBar(ctx, this.app, msg, VIEW_W, VIEW_H);
     if (this.leaving > 0) {
       ctx.fillStyle = `rgba(0,0,0,${1 - this.leaving / 30})`;
       ctx.fillRect(0, 0, VIEW_W, VIEW_H);

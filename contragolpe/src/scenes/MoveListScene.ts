@@ -4,7 +4,8 @@ import type { MoveData } from "../data/types";
 import { blockAdvantage, fmtAdv } from "../sim/frameData";
 import { VIEW_H, VIEW_W } from "../render/view";
 import { CHAR_STATS, CHAR_TIPS } from "../ui/charInfo";
-import { drawBackdrop, drawCharacter, drawFooter, drawPanel, drawText, UI } from "../ui/ui";
+import { drawHintBar, drawRich, menuDevice, notationTokens, type GlyphDevice } from "../ui/glyphs";
+import { drawBackdrop, drawCharacter, drawPanel, drawText, UI } from "../ui/ui";
 import type { Scene } from "./Scene";
 
 function section(moves: MoveData[], kinds: MoveData["kind"][], filter?: (m: MoveData) => boolean): MoveData[] {
@@ -12,7 +13,8 @@ function section(moves: MoveData[], kinds: MoveData["kind"][], filter?: (m: Move
 }
 
 /** Lista de movimientos de un personaje (se usa a pantalla completa y desde la pausa). */
-export function drawMoveList(ctx: CanvasRenderingContext2D, charId: string, withData: boolean): void {
+/** `dev`: si se da, la notación se dibuja con los íconos de ese dispositivo (mando o teclas). */
+export function drawMoveList(ctx: CanvasRenderingContext2D, charId: string, withData: boolean, dev?: GlyphDevice): void {
   const ch = getChar(charId);
   const st = CHAR_STATS[charId];
   ctx.fillStyle = "rgba(6,8,22,0.93)";
@@ -45,7 +47,8 @@ export function drawMoveList(ctx: CanvasRenderingContext2D, charId: string, with
     for (const m of ms) {
       const notation = m.notation.replace(/ \+ (LP|HP)$/, " + P").replace(/ \+ (LK|HK)$/, " + K");
       col(m.name.replace(/\s*\(.*\)$/, ""), 44, y);
-      col(notation, 330, y, UI.cyan);
+      if (dev) drawRich(ctx, notationTokens(notation), 330, y, dev, { size: 14, color: UI.cyan });
+      else col(notation, 330, y, UI.cyan);
       if (withData && m.hitboxes.length && m.stance !== "air") col(`S${m.startup} · bloq ${m.knockdown ? "—" : fmtAdv(blockAdvantage(m))}`, 560, y, UI.dim, 12);
       y += 20;
     }
@@ -61,13 +64,18 @@ export function drawMoveList(ctx: CanvasRenderingContext2D, charId: string, with
   normals.forEach((m, i) => {
     const x = i < 4 ? 44 : 360;
     const yy = y + (i % 4) * 18;
-    drawText(ctx, `${m.notation}`, x, yy, { size: 12, color: UI.cyan });
+    if (dev) drawRich(ctx, notationTokens(m.notation), x, yy, dev, { size: 12, color: UI.cyan });
+    else drawText(ctx, `${m.notation}`, x, yy, { size: 12, color: UI.cyan });
     drawText(ctx, `${m.name}${m.guard === "low" ? " (bajo)" : ""}`, x + 62, yy, { size: 12 });
   });
   y += 80;
   const tips = CHAR_TIPS[charId] ?? [];
   drawPanel(ctx, 24, Math.min(y, VIEW_H - 112), 640, 76, 0.8);
-  tips.forEach((t, i) => drawText(ctx, `• ${t}`, 36, Math.min(y, VIEW_H - 112) + 18 + i * 20, { size: 12, color: UI.text }));
+  tips.forEach((t, i) => {
+    const ty = Math.min(y, VIEW_H - 112) + 18 + i * 20;
+    if (dev) drawRich(ctx, `• ${notationTokens(t)}`, 36, ty, dev, { size: 12, color: UI.text });
+    else drawText(ctx, `• ${t}`, 36, ty, { size: 12, color: UI.text });
+  });
   drawCharacter(ctx, charId, "win", VIEW_W - 150, VIEW_H - 40, 1.5, -1);
   drawText(ctx, "P = puño (LP/HP) · K = patada (LK/HK) · → = hacia el rival · SP = especial simple", VIEW_W - 20, 36, {
     size: 11,
@@ -100,7 +108,7 @@ export class MoveListScene implements Scene {
 
   render(ctx: CanvasRenderingContext2D): void {
     drawBackdrop(ctx, this.app.time);
-    drawMoveList(ctx, CHARACTERS[this.idx].id, true);
-    drawFooter(ctx, "←→ cambiar de personaje · Esc volver");
+    drawMoveList(ctx, CHARACTERS[this.idx].id, true, menuDevice(this.app));
+    drawHintBar(ctx, this.app, "{LEFTRIGHT} cambiar de personaje · {BACK} volver", VIEW_W, VIEW_H);
   }
 }

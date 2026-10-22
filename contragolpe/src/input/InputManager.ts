@@ -80,6 +80,8 @@ export class InputManager {
   readonly events: PadEvent[] = [];
   /** Qué juego de teclas usa cada jugador (la pantalla de unión puede dar el de J1 a J2). */
   readonly keySet: [0 | 1, 0 | 1] = [0, 1];
+  /** Último dispositivo usado (índice de mando, o −1 = teclado): decide qué íconos se muestran en los menús. */
+  lastDevice = -1;
   /** Evita dobles disparos: tras `consume()` los menús no ven nada más en este tick. */
   private consumed = false;
   private menuCache: MenuInput | null = null;
@@ -109,6 +111,7 @@ export class InputManager {
         return;
       }
       if (this.isGameKey(e.code)) e.preventDefault();
+      this.lastDevice = -1;
       if (!e.repeat) {
         this.pressed.add(e.code);
         this.tapped.add(e.code);
@@ -135,6 +138,11 @@ export class InputManager {
       this.readers[i].update(gp && gp.connected ? gp : null, this.tuning);
     }
     this.updateSlots();
+    if (this.lastDevice >= 0 && !this.readers[this.lastDevice].connected) this.lastDevice = -1;
+    for (let i = 0; i < MAX_PADS; i++) {
+      const r = this.readers[i];
+      if (r.connected && (r.anyPressed() || (r.dir !== 0 && r.prevDir === 0))) this.lastDevice = i;
+    }
   }
 
   /** Bajas (el hueco queda esperando), reconexiones (mismo id) y uniones al pulsar. */

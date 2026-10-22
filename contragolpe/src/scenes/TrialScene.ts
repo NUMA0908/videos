@@ -6,6 +6,7 @@ import { Btn } from "../sim/input";
 import { Rng } from "../sim/rng";
 import type { GameState } from "../sim/types";
 import { FONT, FONT_IMPACT, VIEW_H, VIEW_W } from "../render/view";
+import { drawRich, playerDevice } from "../ui/glyphs";
 import { drawMenu, drawPanel, drawTitle, type MenuItem } from "../ui/ui";
 import { FightScene } from "./FightScene";
 import { PadLostWatcher } from "./padLost";
@@ -66,6 +67,7 @@ export class TrialScene implements Scene {
     );
     f.hud.showTimer = false;
     f.hud.labels = ["TÚ", "MUÑECO"];
+    f.rumbleSides = [true, false];
     f.inputs[1] = () => this.dummyInput();
     f.onTick = (s) => this.observe(s);
     f.overlay = (ctx) => this.drawOverlay(ctx);
@@ -217,6 +219,7 @@ export class TrialScene implements Scene {
     this.pauseOpen = open;
     this.pauseSel = 0;
     this.fight.paused = open;
+    if (open) this.fight.stopRumble();
     this.app.input.consume();
   }
 
@@ -334,12 +337,15 @@ export class TrialScene implements Scene {
     ctx.fillStyle = "rgba(0,0,0,0.6)";
     ctx.fillRect(0, VIEW_H - 62, VIEW_W, 20);
     ctx.fillStyle = "#cfe8ff";
-    ctx.fillText(
-      `PARRY: L / RB · ↓ + PARRY = parry bajo · Ventana: ${this.window()} frames (${this.fight.state.config.parry}) · Esc/Start pausa · Intentos: ${this.attempts}`,
+    ctx.restore();
+    drawRich(
+      ctx,
+      `PARRY: {PARRY} · ↓ + {PARRY} = parry bajo · Ventana: ${this.window()} frames (${this.fight.state.config.parry}) · {PAUSE} pausa · Intentos: ${this.attempts}`,
       VIEW_W / 2,
       VIEW_H - 52,
+      playerDevice(this.app, 0),
+      { size: 12, color: "#cfe8ff", align: "center" },
     );
-    ctx.restore();
     if (this.pauseOpen) {
       ctx.fillStyle = "rgba(4,6,16,0.7)";
       ctx.fillRect(0, 0, VIEW_W, VIEW_H);

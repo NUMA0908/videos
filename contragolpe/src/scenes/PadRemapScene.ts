@@ -6,7 +6,8 @@ import { isHatCode } from "../input/padCodes";
 import { PAD_KIND_LABEL } from "../input/padKind";
 import { padCodeName } from "../input/padNames";
 import { assignPadInput, findPadConflicts, PadCapture } from "../input/remap";
-import { VIEW_W } from "../render/view";
+import { VIEW_H, VIEW_W } from "../render/view";
+import { drawHintBar } from "../ui/glyphs";
 import { drawBackdrop, drawFooter, drawMenu, drawPanel, drawText, drawTitle, UI, type MenuItem } from "../ui/ui";
 import type { Scene } from "./Scene";
 
@@ -253,7 +254,8 @@ export class PadRemapScene implements Scene {
     }
     if (this.notice) drawText(ctx, this.notice, VIEW_W / 2, 488, { size: 15, align: "center", color: UI.accent, bold: true });
     if ((this.capturing || this.guided) && r) this.renderCapture(ctx, r);
-    drawFooter(ctx, this.capturing || this.guided ? "Esc cancela · Retroceso omite (guía)" : "↑↓ elegir · ←→ cambiar de mando · A/✕/Enter asignar · B/○/Esc volver");
+    if (this.capturing || this.guided) drawFooter(ctx, "Esc cancela · Retroceso omite (guía)");
+    else drawHintBar(ctx, this.app, "{UPDOWN} elegir · {LEFTRIGHT} cambiar de mando · {ACCEPT} asignar · {BACK} volver", VIEW_W, VIEW_H);
   }
 
   private renderCapture(ctx: CanvasRenderingContext2D, r: PadReader): void {
