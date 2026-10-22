@@ -82,7 +82,7 @@ describe("cada especial sale con su motion", () => {
 
 describe("Muralla (grappler)", () => {
   it("el Abrazo de Oso no se puede escapar", () => {
-    const s = placeAt(readyMatch({ chars: ["muralla", "rayo"] }), 90);
+    const s = placeAt(readyMatch({ chars: ["muralla", "rayo"] }), 84);
     const seq = motionFrames(MOTION_DIRS.hcb, LP, 1, 2);
     const ev: SimEvent[] = [];
     for (let i = 0; i < 80; i++) {
@@ -91,7 +91,7 @@ describe("Muralla (grappler)", () => {
     }
     expect(ev.some((e) => e.type === "throwHit" && e.side === 0)).toBe(true);
     expect(ev.some((e) => e.type === "tech")).toBe(false);
-    expect(1000 - s.fighters[1].health).toBe(180);
+    expect(1000 - s.fighters[1].health).toBe(165);
   });
 
   it("el Atrapa Cielos atrapa a un rival que salta (y no a uno en el suelo)", () => {

@@ -28,14 +28,16 @@ export interface CpuLevel {
   combo: number;
   tech: number;
   aggression: number;
+  /** Probabilidad de responder a un proyectil (saltarlo o atravesarlo). */
+  antiZone: number;
   /** Frames de pausa entre decisiones (mín., máx.). */
   think: [number, number];
 }
 
 export const CPU_LEVELS: CpuLevel[] = [
-  { name: "Fácil", reaction: 26, mistake: 0.4, block: 0.35, antiAir: 0.2, parry: 0.02, punish: 0.25, combo: 0.25, tech: 0.1, aggression: 0.35, think: [14, 34] },
-  { name: "Normal", reaction: 17, mistake: 0.2, block: 0.65, antiAir: 0.5, parry: 0.07, punish: 0.55, combo: 0.6, tech: 0.3, aggression: 0.5, think: [8, 22] },
-  { name: "Difícil", reaction: 11, mistake: 0.08, block: 0.85, antiAir: 0.75, parry: 0.16, punish: 0.85, combo: 0.85, tech: 0.5, aggression: 0.6, think: [4, 14] },
+  { name: "Fácil", reaction: 26, mistake: 0.4, block: 0.35, antiAir: 0.2, parry: 0.02, punish: 0.25, combo: 0.25, tech: 0.1, aggression: 0.35, antiZone: 0.12, think: [14, 34] },
+  { name: "Normal", reaction: 17, mistake: 0.2, block: 0.72, antiAir: 0.5, parry: 0.07, punish: 0.6, combo: 0.6, tech: 0.4, aggression: 0.5, antiZone: 0.4, think: [8, 22] },
+  { name: "Difícil", reaction: 11, mistake: 0.08, block: 0.9, antiAir: 0.75, parry: 0.16, punish: 0.9, combo: 0.85, tech: 0.6, aggression: 0.6, antiZone: 0.6, think: [4, 14] },
 ];
 
 /** Cómo juega cada personaje (la IA no "sabe" de frame data; tiene costumbres). */
@@ -49,6 +51,10 @@ interface Habits {
   antiAir: [number[], number] | null;
   projectile: [number[], number] | null;
   command: [number[], number] | null;
+  /** Movimiento que atraviesa (o encaja) proyectiles y distancia máxima al rival para usarlo. */
+  through: { input: [number[], number]; range: number } | null;
+  /** Prob. de dash para entrar. */
+  dash: number;
 }
 
 const QCF = [2, 3, 6];
@@ -67,6 +73,8 @@ const HABITS: Record<string, Habits> = {
     antiAir: [DP, Btn.HP],
     projectile: [QCF, Btn.HP],
     command: null,
+    through: { input: [[2, 1, 4], Btn.HK], range: 230 },
+    dash: 0.1,
   },
   chispa: {
     range: 120,
@@ -79,6 +87,8 @@ const HABITS: Record<string, Habits> = {
     antiAir: [DP, Btn.LP],
     projectile: [QCF, Btn.LP],
     command: null,
+    through: { input: [[2, 1, 4], Btn.HK], range: 330 },
+    dash: 0.4,
   },
   muralla: {
     range: 110,
@@ -91,6 +101,8 @@ const HABITS: Record<string, Habits> = {
     antiAir: [DP, Btn.HP],
     projectile: [QCF, Btn.HP],
     command: [HCB, Btn.LP],
+    through: { input: [QCF, Btn.HK], range: 250 },
+    dash: 0.05,
   },
 };
 
@@ -132,6 +144,15 @@ export class Cpu {
   private seen: Seen[] = [];
   private rng: Rng;
   private techArmed = -1;
+  /** Memoria simple: si le castigan algo, lo hace menos (y lo va olvidando poco a poco). */
+  private jumpTrust = 1;
+  private pokeTrust = 1;
+  private prevState: FighterState["state"] = "idle";
+  /** Cuántos reversals (movimientos invencibles) le ha visto al rival: si abusa, la CPU espera y castiga. */
+  private reversalSeen = 0;
+  /** Fracción reciente de frames en los que el rival estaba atacando (media móvil). */
+  private oppAttackRate = 0;
+  private lastSeenMove: string | null = null;
 
   constructor(
     public level: CpuLevel,
@@ -158,6 +179,7 @@ export class Cpu {
       return 0;
     }
     const me = s.fighters[this.side];
+    this.learn(me, s);
 
     // Escapar de agarres (adivinando: la ventana es más corta que cualquier reacción humana).
     if (me.state === "thrown" && me.techWindow > 0) {
@@ -177,11 +199,42 @@ export class Cpu {
       return this.refreshHold(s, me);
     }
     if (this.wait > 0) {
+      this.hurry(s);
       this.wait--;
+      // Aunque esté "pensando", un error claro del rival se castiga.
+      const o = this.perceived();
+      if (ACTIONABLE.has(me.state) && this.punishable(s, o) && this.rng.chance(this.level.punish * 0.6)) {
+        const pin = this.punishInput(s, o);
+        if (pin) return this.push(pin);
+      }
       // Mientras "piensa", si le atacan bloquea (según el nivel).
       return this.defend(s, me, true) ?? 0;
     }
     return this.decide(s, me);
+  }
+
+  private learn(me: FighterState, s?: GameState): void {
+    if (s) {
+      const o = this.perceived();
+      if (o && o.state === "attack" && o.move && o.mf <= 2 && o.move !== this.lastSeenMove) {
+        const mv = getMove(s.fighters[this.side === 0 ? 1 : 0].char, o.move);
+        if (mv.invuln?.some((iv) => iv.from <= 2 && (iv.kind === "all" || iv.kind === "strike"))) this.reversalSeen++;
+      }
+      this.lastSeenMove = o?.state === "attack" ? o.move : null;
+      const attacking = o && (o.state === "attack" || o.state === "throw") ? 1 : 0;
+      this.oppAttackRate += (attacking - this.oppAttackRate) * 0.01;
+    }
+    this.reversalSeen = Math.max(0, this.reversalSeen - 0.0008);
+    const wasAir = this.prevState === "air" || (this.prevState === "attack" && me.y > 0);
+    const hitNow = me.state === "airHit" || me.state === "hitstun" || me.state === "ko";
+    const wasHit = this.prevState === "airHit" || this.prevState === "hitstun" || this.prevState === "ko";
+    if (hitNow && !wasHit) {
+      if (wasAir) this.jumpTrust = Math.max(0.1, this.jumpTrust * 0.5);
+      else if (this.prevState === "attack" && me.lastCounter) this.pokeTrust = Math.max(0.25, this.pokeTrust * 0.6);
+    }
+    this.prevState = me.state;
+    this.jumpTrust = Math.min(1, this.jumpTrust + 0.0015);
+    this.pokeTrust = Math.min(1, this.pokeTrust + 0.002);
   }
 
   /** Mientras bloquea, ajusta la altura a lo que ve. */
@@ -207,6 +260,11 @@ export class Cpu {
     this.queue.push(...frames);
     if (think) this.wait = Math.round(this.rng.range(this.level.think[0], this.level.think[1]));
     return this.queue.shift() ?? 0;
+  }
+
+  /** Pegado al rival no hay tiempo para pensar tanto (bloquear sin más pierde contra agarres). */
+  private hurry(s: GameState): void {
+    if (this.dist(s) < 120) this.wait = Math.min(this.wait, 3 + this.rng.int(4));
   }
 
   /** Altura del ataque que la CPU cree que viene (con retraso), o null si no ve amenaza. */
@@ -242,7 +300,8 @@ export class Cpu {
         return this.push([this.hold], true);
       }
     }
-    if (roll < this.level.block + (passive ? 0 : this.level.parry)) {
+    const extra = Math.min(0.2, Math.max(0, this.oppAttackRate - 0.25));
+    if (roll < this.level.block + extra + (passive ? 0 : this.level.parry)) {
       const back = dirMask(4, me.facing);
       // Error de altura ocasional.
       const wrong = this.rng.chance(this.level.mistake * 0.5);
@@ -303,14 +362,39 @@ export class Cpu {
       if (def !== null) return def;
     }
 
+    // Ve al rival empezar a lanzar un proyectil a media distancia: salta para castigar la recuperación.
+    if (o.state === "attack" && o.move && d > 150 && d < 330 && this.jumpTrust > 0.3) {
+      const omv = getMove(s.fighters[this.side === 0 ? 1 : 0].char, o.move);
+      if (omv.projectile && this.rng.chance(lv.antiZone)) return this.push([Btn.UP | fwd, Btn.UP | fwd, Btn.UP | fwd], false);
+    }
+
+    // Proyectil acercándose: atravesarlo, saltarlo, anularlo o quedarse bloqueando hasta que pase.
+    const proj = o.projectiles.find((p) => (p.x - meX) * p.vx < 0);
+    if (proj) {
+      const pd = Math.abs(proj.x - meX);
+      const speed = Math.max(1, Math.abs(proj.vx));
+      const r0 = this.rng.next();
+      if (pd > 70 && pd < 300 && r0 < lv.antiZone) {
+        if (habits.through && d < habits.through.range && this.rng.chance(0.6)) return this.push(motionFrames(habits.through.input[0], habits.through.input[1], f, 1));
+        if (pd > 120 && pd < 250 && d < 420 && this.jumpTrust > 0.3) return this.push([Btn.UP | fwd, Btn.UP | fwd, Btn.UP | fwd], false);
+        if (habits.zoner && habits.projectile && !s.projectiles.some((p) => p.owner === this.side)) return this.push(motionFrames(habits.projectile[0], habits.projectile[1], f, 1));
+      }
+      if (pd < 420 && this.rng.chance(Math.min(0.95, lv.block + 0.25))) {
+        const pdData = getProjectile(s.fighters[proj.owner].char, proj.kind);
+        this.hold = back | (pdData.guard === "high" ? 0 : Btn.DOWN);
+        this.holdFrames = Math.min(40, Math.ceil(pd / speed) + 6);
+        return this.hold;
+      }
+    }
+
     // Defensa contra golpes/proyectiles que ve venir
     const def = this.defend(s, me);
     if (def !== null) return def;
 
     // Castigo: el rival está recuperándose de algo que falló o le bloquearon.
     if (this.punishable(s, o) && this.rng.chance(lv.punish)) {
-      if (d < 115) return this.push([Btn.HP | (me.meter >= TUNING.meter.max && this.rng.chance(0.3) ? Btn.HK : 0)]);
-      if (d < 175) return this.push([Btn.HK]);
+      const pin = this.punishInput(s, o);
+      if (pin) return this.push(pin);
     }
 
     // Juego neutro según distancia y personalidad
@@ -320,7 +404,7 @@ export class Cpu {
 
     if (d > 330) {
       if (habits.zoner && !myProj && r < 0.45 && habits.projectile) return this.push(motionFrames(habits.projectile[0], habits.projectile[1], f, 1));
-      if (me.char === "chispa" && r < 0.35) return this.push([fwd, 0, fwd]);
+      if (r < habits.dash) return this.push([fwd, 0, fwd]);
       if (r < 0.75) return this.walk(fwd, 18 + this.rng.int(18));
       return this.walk(0, 10);
     }
@@ -330,15 +414,27 @@ export class Cpu {
       for (const p of habits.pokes) {
         if (d < p.reach + 10 && r < 0.4) return this.push([(p.crouch ? Btn.DOWN : 0) | Btn[p.move]]);
       }
-      if (r < 0.4 + aggr * 0.25 && d < 260) return this.push([Btn.UP | fwd, Btn.UP | fwd, Btn.UP | fwd]);
+      if (r < (0.4 + aggr * 0.25) * this.jumpTrust && d < 260) return this.push([Btn.UP | fwd, Btn.UP | fwd, Btn.UP | fwd]);
+      if (r < 0.5 + habits.dash && d > 170) return this.push([fwd, 0, fwd]);
       if (d > habits.range) return this.walk(fwd, 12 + this.rng.int(16));
       if (r < 0.85) return this.walk(back, 8 + this.rng.int(10));
       return this.walk(0, 12);
     }
 
-    // Cerca: presión, agarres y mezclas
+    // Cerca: a veces espera bloqueando para castigar (más si le han ganado a golpes o abusa de reversals).
+    // Contra quien no para de apretar botones: bloquear y castigar lo que falle.
+    const masher = Math.max(0, this.oppAttackRate - 0.25) * 1.6;
+    const bait = 0.12 + (1 - this.pokeTrust) * 0.3 + Math.min(0.55, this.reversalSeen * 0.09) + Math.min(0.45, masher);
+    if (r < bait) {
+      // Contra un agarre de comando no sirve esperar agachado: mejor retroceder fuera de su alcance.
+      const grabber = !!HABITS[s.fighters[this.side === 0 ? 1 : 0].char]?.command;
+      return this.walk(grabber ? back : back | Btn.DOWN, 10 + this.rng.int(14));
+    }
+    // Presión, agarres y mezclas
     if (habits.command && d < 110 && r < 0.3) return this.push(motionFrames(habits.command[0], habits.command[1], f, 1));
-    if (d < 92 && r < 0.22) return this.push([Btn.LP | Btn.LK]);
+    // Un rival que se queda agachado bloqueando pide un agarre.
+    const turtle = o.state === "crouch" || o.state === "blockstun";
+    if (d < 92 && r < (turtle ? 0.45 : 0.22)) return this.push([Btn.LP | Btn.LK]);
     if (r < 0.5) {
       // Cadena baja → especial (si conecta, la parte de combo arriba decide cancelar)
       return this.push([Btn.DOWN | Btn.LK, ...waitFrames(6, Btn.DOWN), Btn.DOWN | Btn.LK, ...waitFrames(5, Btn.DOWN)]);
@@ -358,14 +454,34 @@ export class Cpu {
     return mask;
   }
 
-  /** ¿El rival (visto con retraso) está en una recuperación castigable? */
-  private punishable(s: GameState, o: Seen): boolean {
-    if (o.state === "parryFail" || o.state === "fall") return true;
-    if (o.state === "land") return true;
-    if (o.state !== "attack" || !o.move) return false;
+  /**
+   * Frames que (estimamos) le quedan al rival de recuperación ahora mismo: lo que vemos con retraso
+   * menos nuestro propio retraso de reacción. 0 = nada que castigar.
+   */
+  private punishWindow(s: GameState, o: Seen): number {
+    const lag = this.level.reaction;
+    if (o.state === "parryFail") return Math.max(0, TUNING.parry.failRecovery - lag + 4);
+    if (o.state === "fall") return 18;
+    if (o.state === "land") return Math.max(0, 10 - lag);
+    if (o.state !== "attack" || !o.move || o.contact === "hit") return 0;
     const mv: MoveData = getMove(s.fighters[this.side === 0 ? 1 : 0].char, o.move);
-    if (mv.stance === "air") return false;
-    const remaining = totalFrames(mv) - o.mf;
-    return o.mf > mv.startup + mv.active - 1 && remaining > 8 + this.level.reaction / 2 && o.contact !== "hit";
+    if (mv.stance === "air" || o.mf <= mv.startup + mv.active - 1) return 0;
+    return Math.max(0, totalFrames(mv) - o.mf - lag);
+  }
+
+  private punishable(s: GameState, o: Seen): boolean {
+    return this.punishWindow(s, o) >= 5;
+  }
+
+  /** Elige el castigo que cabe en la ventana y a esa distancia (null si ninguno). */
+  private punishInput(s: GameState, o: Seen): number[] | null {
+    const w = this.punishWindow(s, o);
+    const d = this.dist(s);
+    const me = s.fighters[this.side];
+    const jab = getChar(me.char).moves.st_lp.startup;
+    if (w >= 12 && d < 115) return [Btn.HP | (me.meter >= TUNING.meter.max && this.rng.chance(0.3) ? Btn.HK : 0)];
+    if (w >= 14 && d < 175) return [Btn.HK];
+    if (w >= jab + 1 && d < 95) return [this.rng.chance(0.5) ? Btn.DOWN | Btn.LK : Btn.LP];
+    return null;
   }
 }

@@ -53,6 +53,12 @@ export class App {
   }
 
   private tick(): void {
+    const t0 = performance.now();
+    this.tickInner();
+    this.perf.tickMs = this.perf.tickMs * 0.95 + (performance.now() - t0) * 0.05;
+  }
+
+  private tickInner(): void {
     this.time += 1 / 60;
     this.input.poll();
     if (this.input.anyPadPressed()) this.audio.unlock();
@@ -61,7 +67,20 @@ export class App {
     this.input.endTick();
   }
 
+  /** Estadísticas de coste por frame (ms) para medir rendimiento. */
+  readonly perf = { tickMs: 0, drawMs: 0, maxDrawMs: 0, frames: 0 };
+
   private draw(): void {
+    const t0 = performance.now();
+    this.drawInner();
+    const dt = performance.now() - t0;
+    const p = this.perf;
+    p.drawMs = p.drawMs * 0.95 + dt * 0.05;
+    p.maxDrawMs = Math.max(p.maxDrawMs * 0.999, dt);
+    p.frames++;
+  }
+
+  private drawInner(): void {
     const ctx = this.ctx;
     ctx.setTransform(this.scale, 0, 0, this.scale, 0, 0);
     ctx.fillStyle = "#07070c";

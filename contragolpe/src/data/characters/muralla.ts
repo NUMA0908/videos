@@ -13,7 +13,7 @@ export const MURALLA: CharacterData = {
   archetype: "Grappler",
   description: "Mucha vida, golpes enormes y agarres que no se escapan. Lento: tiene que abrirse paso.",
   quote: "Ven. Que te doy un abrazo.",
-  health: 1150,
+  health: 1100,
   walkF: 2.2,
   walkB: 1.9,
   dashF: { frames: 22, distance: 92 },

@@ -13,7 +13,7 @@ export const CHISPA: CharacterData = {
   archetype: "Rushdown",
   description: "Muy rápida, presión constante y mezclas. Poca vida: no puede permitirse errores.",
   quote: "¿Pestañeaste? Ya te pegué dos veces.",
-  health: 880,
+  health: 930,
   walkF: 4.2,
   walkB: 3.3,
   dashF: { frames: 15, distance: 128 },

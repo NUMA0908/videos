@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "framedata": "tsx scripts/framedata.ts"
+    "framedata": "tsx scripts/framedata.ts",
+    "sim": "tsx scripts/balance.ts"
   },
   "devDependencies": {
     "@types/node": "22.19.1",

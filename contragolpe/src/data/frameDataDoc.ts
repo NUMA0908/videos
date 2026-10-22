@@ -53,3 +53,30 @@ export function frameDataMarkdown(): string {
 
 export const FRAMEDATA_START = "<!-- FRAMEDATA:START (generado con `npm run framedata`, no editar a mano) -->";
 export const FRAMEDATA_END = "<!-- FRAMEDATA:END -->";
+
+/** Lista de movimientos para el README (se regenera con `npm run framedata`). */
+export function moveListMarkdown(): string {
+  const out: string[] = [];
+  for (const ch of CHARACTERS) {
+    out.push(`### ${ch.nickname} — ${ch.archetype} (vida ${ch.health})`, "", ch.description, "");
+    out.push("| Movimiento | Cómo se hace |", "|---|---|");
+    const seen = new Set<string>();
+    const all = Object.values(ch.moves);
+    const order = [...all.filter((m) => m.kind === "super"), ...all.filter((m) => m.kind === "special" || (m.kind === "throw" && m.id !== ch.throw)), ...all.filter((m) => m.id === ch.throw)];
+    for (const m of order) {
+      const base = m.name.replace(/\s*\(.*\)$/, "");
+      if (seen.has(base)) continue;
+      seen.add(base);
+      const notation = m.notation.replace(/ \+ (LP|HP)$/, " + P").replace(/ \+ (LK|HK)$/, " + K");
+      out.push(`| ${m.kind === "super" ? "**SÚPER** " : ""}${base} | ${notation} |`);
+    }
+    for (const c of ch.normals.command ?? []) out.push(`| ${ch.moves[c.move].name} | ${ch.moves[c.move].notation} |`);
+    const simple = ch.simple;
+    const name = (id: string) => ch.moves[id].name.replace(/\s*\(.*\)$/, "");
+    out.push("", `Inputs simplificados: SP = ${name(simple.neutral)} · SP+↓ = ${name(simple.down)} · SP+→ = ${name(simple.forward)} · SP+← = ${name(simple.back)}.`, "");
+  }
+  return out.join("\n");
+}
+
+export const MOVELIST_START = "<!-- MOVELIST:START (generado con `npm run framedata`, no editar a mano) -->";
+export const MOVELIST_END = "<!-- MOVELIST:END -->";
