@@ -1,5 +1,8 @@
 import type { App } from "../app/App";
+import { getChar } from "../data/characters";
 import type { WorldBox } from "../sim/boxes";
+import { toPx } from "../sim/fixed";
+import { allProjectileBoxes } from "../sim/projectiles";
 import { createMatch } from "../sim/state";
 import { step } from "../sim/step";
 import type { FighterState, GameState, MatchConfig } from "../sim/types";
@@ -18,6 +21,7 @@ export class FightScene implements Scene {
   readonly hud = new Hud();
   readonly logs: [InputLog, InputLog] = [new InputLog(), new InputLog()];
   debug = false;
+  private superDim = 0;
 
   constructor(
     readonly app: App,
@@ -49,10 +53,28 @@ export class FightScene implements Scene {
     this.logs[0].push(m0, this.state.fighters[0].facing);
     this.logs[1].push(m1, this.state.fighters[1].facing);
     this.hud.update(this.state);
-    this.renderer.cam.update(this.state);
+    const s = this.state;
+    const cam = this.renderer.cam;
+    if (s.freeze > 0 && s.freezeOwner !== -1) {
+      const f = s.fighters[s.freezeOwner];
+      cam.zoomTarget = 1.28;
+      cam.focusX = toPx(f.x);
+      cam.focusY = toPx(f.y) + 60;
+      this.superDim = Math.min(0.6, this.superDim + 0.08);
+    } else {
+      cam.zoomTarget = 1;
+      cam.focusX = null;
+      this.superDim = Math.max(0, this.superDim - 0.05);
+    }
+    cam.update(s);
   }
 
   private fxFor(f: FighterState): FighterFx {
+    const s = this.state;
+    if (s.freeze > 0 && s.freezeOwner === f.side) {
+      const pal = getChar(f.char).look.colors;
+      return { flash: 0, jitter: 0, glow: pal.energy, glowAlpha: 0.9 };
+    }
     const hitFrozen = f.hitstop > 0 && (f.state === "hitstun" || f.state === "airHit" || f.state === "ko");
     const blockFrozen = f.hitstop > 0 && f.state === "blockstun";
     return {
@@ -70,8 +92,9 @@ export class FightScene implements Scene {
       altPalette: [false, s.config.chars[0] === s.config.chars[1]],
       fx: [this.fxFor(s.fighters[0]), this.fxFor(s.fighters[1])],
       time: this.app.time,
+      dim: this.superDim,
     });
-    if (this.debug) this.renderer.drawDebug(s, this.logs, (): WorldBox[] => []);
+    if (this.debug) this.renderer.drawDebug(s, this.logs, (st): WorldBox[] => allProjectileBoxes(st));
     this.hud.draw(ctx, s);
 
     if (s.round.phase === "over" && s.round.t > 60) {

@@ -164,7 +164,7 @@ export function applyHit(s: GameState, atk: FighterState | null, def: FighterSta
     def.mf = 0;
     def.vx = 0;
     def.stun = Math.max(1, st.hitstun + (counter ? st.chHitstunBonus : 0) - hitstunDecay(def.comboHits));
-    pushApart(atk, def, st.fromX, st.pushback);
+    pushApart(st.projectile ? null : atk, def, st.fromX, st.pushback);
   }
 
   if (atk) {
@@ -200,7 +200,7 @@ export function applyBlock(s: GameState, atk: FighterState | null, def: FighterS
   def.hitstop = st.hitstop;
   if (atk && !st.projectile) atk.hitstop = st.hitstop;
   if (st.chip > 0) def.health = Math.max(s.config.infiniteHealth ? 1 : 0, def.health - st.chip);
-  pushApart(atk, def, st.fromX, st.pushback);
+  pushApart(st.projectile ? null : atk, def, st.fromX, st.pushback);
   if (atk) {
     gainMeter(atk, st.meterOnBlock);
     if (!st.projectile) {

@@ -1,6 +1,6 @@
 import { getChar } from "../data/characters";
 import { TUNING } from "../data/tuning";
-import { applyMoveMotion, endMove, moveOf, moveTotal, tryAirNormal, tryGroundNormal } from "./actions";
+import { applyMoveMotion, attackContext, consume, endMove, moveOf, moveTotal, together, tryActions } from "./actions";
 import { resolveStrikes } from "./combat";
 import {
   advanceMovementState,
@@ -15,6 +15,8 @@ import {
 } from "./fighter";
 import { cleanSOCD, isDown, pushInput } from "./input";
 import { integrate, resolveBodies } from "./physics";
+import { resolveProjectiles, spawnProjectile, updateProjectiles } from "./projectiles";
+import { resolveThrows, updateThrower, updateThrown } from "./throws";
 import { updateRoundEnd, updateRoundStart } from "./round";
 import { cloneState } from "./state";
 import type { FighterState, GameState, Side } from "./types";
@@ -71,11 +73,14 @@ export function stepInPlace(s: GameState, in0: number, in1: number): void {
   }
 
   resolveBodies(s, prevX);
+  updateProjectiles(s);
   resolveStrikes(s);
+  resolveThrows(s);
+  resolveProjectiles(s, () => false);
   updateRoundEnd(s);
 }
 
-function advanceAttack(f: FighterState): void {
+function advanceAttack(s: GameState, f: FighterState): void {
   const mv = moveOf(f);
   if (!mv) {
     endMove(f);
@@ -84,6 +89,7 @@ function advanceAttack(f: FighterState): void {
   f.mf++;
   if (f.contact !== "none") f.sinceContact++;
   applyMoveMotion(f, mv);
+  if (mv.projectile && f.mf === mv.projectile.frame) spawnProjectile(s, f, mv.projectile);
   if (mv.stance === "air") {
     if (f.mf > moveTotal(mv)) {
       setState(f, "air");
@@ -103,7 +109,24 @@ function updateFighter(s: GameState, side: Side): void {
 
   switch (f.state) {
     case "attack":
-      advanceAttack(f);
+      advanceAttack(s, f);
+      if (f.state === "attack" && controlEnabled(s)) {
+        const ctx = attackContext(f);
+        if (ctx) tryActions(s, side, ctx);
+      }
+      break;
+    case "throw":
+      updateThrower(s, f);
+      break;
+    case "thrown": {
+      const tech = together(s, f, "LP", "LK", "neutral");
+      if (tech) consume(f, "LP", "LK");
+      updateThrown(s, f, tech);
+      break;
+    }
+    case "throwTech":
+      f.vx = 0;
+      if (f.t >= TUNING.throw.techRecovery) recover(f);
       break;
     case "hitstun":
       if (f.stun > 0) f.stun--;
@@ -135,7 +158,7 @@ function updateFighter(s: GameState, side: Side): void {
     f.idleT++;
     faceOpponent(f, o);
     if (controlEnabled(s)) {
-      if (!tryGroundNormal(s, side)) neutralMovement(s, side);
+      if (!tryActions(s, side, "neutral")) neutralMovement(s, side);
     } else {
       setState(f, "idle");
       f.vx = 0;
@@ -143,7 +166,7 @@ function updateFighter(s: GameState, side: Side): void {
     }
   } else {
     f.idleT = 0;
-    if (f.state === "air" && controlEnabled(s)) tryAirNormal(s, side);
+    if (f.state === "air" && controlEnabled(s)) tryActions(s, side, "air");
   }
 }
 

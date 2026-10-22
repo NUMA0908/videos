@@ -34,6 +34,8 @@ export class InputManager {
   pads: [PadBindings, PadBindings];
   private down = new Set<string>();
   private pressed = new Set<string>();
+  /** Teclas pulsadas desde el último tick (aunque ya se hayan soltado): ningún toque rápido se pierde. */
+  private tapped = new Set<string>();
   /** Captura de la próxima tecla/botón (pantalla de remapeo). */
   private capture: ((code: string | null, pad: number | null, player: 0 | 1 | null) => void) | null = null;
   private padPrev: boolean[][] = [[], [], [], []];
@@ -56,7 +58,10 @@ export class InputManager {
         return;
       }
       if (this.isGameKey(e.code)) e.preventDefault();
-      if (!e.repeat) this.pressed.add(e.code);
+      if (!e.repeat) {
+        this.pressed.add(e.code);
+        this.tapped.add(e.code);
+      }
       this.down.add(e.code);
     });
     target.addEventListener("keyup", (e) => {
@@ -120,7 +125,7 @@ export class InputManager {
   sample(player: 0 | 1): number {
     let mask = 0;
     const kb = this.keys[player];
-    for (const a of ACTIONS) if (kb[a].some((c) => this.down.has(c))) mask |= ACTION_BIT[a];
+    for (const a of ACTIONS) if (kb[a].some((c) => this.down.has(c) || this.tapped.has(c))) mask |= ACTION_BIT[a];
     const pb = this.pads[player];
     for (const a of ACTIONS) if (pb[a].some((b) => this.padDown(player, b))) mask |= ACTION_BIT[a];
     for (const m of PAD_MACROS) if (this.padDown(player, m.button)) mask |= m.mask;
@@ -177,5 +182,6 @@ export class InputManager {
   /** Fin de tick: olvida las pulsaciones "nuevas". */
   endTick(): void {
     this.pressed.clear();
+    this.tapped.clear();
   }
 }

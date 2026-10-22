@@ -60,7 +60,7 @@ export const TUNING = {
     techWindow: 7,
     /** Tras salir de hitstun/blockstun no te pueden agarrar estos frames. */
     protectAfterStun: 4,
-    techPush: 7,
+    techPush: 36,
     techFreeze: 10,
     techRecovery: 14,
   },

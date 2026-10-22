@@ -138,7 +138,64 @@ velocidades, buffer, ventana de parry e historial de inputs. F3 muestra FPS y ti
 - Intro de ronda (110 frames, nadie se mueve) → pelea → KO (170 frames: el KO'd sale despedido, el ganador posa)
   → siguiente ronda. Vida al máximo cada ronda; el medidor de súper se conserva (permite remontadas).
 
-## 8. Frame data completa
+## 9. Profundidad: agarres, especiales, combos, medidor y súper
+
+### Prioridad y tolerancias
+- **Súper > especial > agarre > normal.** Si un mismo frame cumple varias, gana la de más prioridad.
+- **Kara (2 frames)**: durante los 2 primeros frames de un normal todavía se puede "convertir" en agarre,
+  especial o súper. Así, pulsar LP y LK con un frame de diferencia sigue siendo un agarre, y un especial cuyo
+  botón llegó un pelín antes que el final del motion sigue saliendo.
+- **Pulsación simultánea** (agarre LP+LK, atajo de súper HP+HK): hasta 3 frames de diferencia.
+- Especiales en **familias** (mismo motion y mismo tipo de botón): la primera familia que coincide decide, y
+  dentro de ella la versión ligera/fuerte según el botón pulsado más reciente (empate → fuerte).
+
+### Agarres (throws)
+- LP+LK cerca (84 px entre centros). Startup 5, 2 activos, 23 de recuperación si fallan (castigable).
+- **Ignoran el bloqueo** y le ganan al parry: son la respuesta a quien solo se defiende.
+- No se puede agarrar a quien está en hitstun/blockstun, en el aire, derribado, levantándose, ni durante los
+  4 frames posteriores a salir de un stun (*throw protection*), ni durante un backdash.
+- **Escape (tech)**: el agarrado tiene **7 frames** desde que lo agarran para pulsar LP+LK. Si escapa: nadie
+  recibe daño, ambos se separan y vuelve el neutral. Si ambos agarran el mismo frame, escape automático.
+- Sosteniendo atrás se lanza hacia el otro lado (cambia la posición en pantalla: útil para llevar al rival a la esquina).
+- El daño llega en el frame 16 de la animación (después de la ventana de escape), y derriba.
+
+### Proyectiles
+- Un solo proyectil propio en pantalla. Si ya hay uno, el input del proyectil no sale (sale el normal).
+- Versión ligera **lenta** (4,2 px/f: para avanzar detrás de ella) y fuerte **rápida** (7,5 px/f: para castigar).
+- 32 frames de recuperación: lanzarlo de cerca o sin pensar se castiga (saltando encima o con la Embestida, que
+  atraviesa proyectiles).
+- Se anulan entre sí golpe a golpe; el de mayor prioridad (la súper) sobrevive.
+- Daño de bloqueo (*chip*): 12. El hitstop solo congela al defensor y al proyectil, no a quien lo lanzó.
+
+### Anti-aéreo invencible (Puño Ascendente)
+- Ligero: invencible frames 1–3, 100 de daño. Fuerte: invencible 1–7, 135 de daño, sube más.
+- Deja el suelo, cae y aterriza con 12/16 frames de recuperación: **más de 45 frames** expuesto si falla o lo
+  bloquean. Saltar deja de ser la mejor opción, pero spamear el anti-aéreo se paga caro.
+- **Conflicto con el cuarto de círculo**: si el motion termina en → sale el proyectil; si termina en ↘ sale el
+  anti-aéreo (así caminar hacia delante + ↓↘→ nunca saca un anti-aéreo por accidente).
+
+### Cancels y combos
+- **Chain**: los ligeros (LP/LK de pie y agachado) se encadenan entre sí tras el contacto (golpe o bloqueo),
+  hasta 3 ligeros seguidos.
+- **Cancel a especial / súper**: desde ligeros, el directo, el gancho agachado y la Embestida ligera (a súper).
+- Ventana de cancel: 10 frames no congelados desde el contacto. El buffer no envejece durante el hitstop, así
+  que se puede meter el especial durante el congelamiento del golpe.
+- Ejemplos con Rayo: `↓LK → ↓LK → ↓↘→HP` · `salto HP → HP → ↓↘→HP` · `LP → LP → LK → ↓↙←LK → HP+HK`.
+
+### Medidor y súper
+- Medidor de 0 a 1000. Se llena **al pegar** (20/40 ligeros/fuertes, más con especiales), **al bloquear**
+  (la mitad), **al recibir** (60 % de lo que gana el atacante), **al bloquear** como defensor (40 %), al
+  lanzar especiales (10–15) y con **parry** (fase 4). Se conserva entre rondas.
+- Súper de Rayo, **Tormenta Final** (↓↘→↓↘→ + P, o HP+HK): pantalla de súper de 40 frames (congela el juego,
+  zoom y oscurece), invencible frames 1–12, gran orbe de energía de 5 golpes (62 c/u antes de escalado,
+  ~260 total) que derriba en el último. Cuesta el medidor entero.
+
+### Inputs simplificados (opción, activa por defecto)
+- Botón **SP** (J1: O · J2: Num 9 · gamepad: LB): SP = proyectil rápido, SP+↓ = anti-aéreo fuerte,
+  SP+→ = Embestida larga, SP+← = proyectil lento. Mismo daño que con el motion: la ventaja del motion es solo
+  elegir la versión. Los motion inputs siempre funcionan. Se puede desactivar en Opciones.
+
+## 10. Frame data completa
 
 Columnas "Bloqueo", "Hit" y "CH" = ventaja en frames si el primer frame activo conecta.
 "—" = no aplica (derriba o es un agarre). "altura" = ataques en salto: la ventaja depende de lo cerca
@@ -162,5 +219,19 @@ del suelo que conecten (cuanto más tarde, más ventaja; un salto profundo deja 
 | Rodilla cruzada | (aire) LK | 5 | 9 | 0 | 40 | alto | 14 | 10 | altura | altura | altura | 4 | aterrizaje 3f |
 | Martillo aéreo | (aire) HP | 7 | 5 | 0 | 85 | alto | 18 | 14 | altura | altura | altura | 9 | aterrizaje 4f |
 | Patada voladora | (aire) HK | 8 | 5 | 0 | 90 | alto | 18 | 14 | altura | altura | altura | 9 | aterrizaje 4f |
+| Llave de cadera | LP + LK (cerca) | 5 | 2 | 23 | 120 | agarre | 0 | 0 | — | — | — | 10 | agarre 84px |
+| Onda Rayo (lenta) | ↓↘→ + LP | 12 | 1 | 32 | 0 | medio | 0 | 0 | -32 | -32 | -29 | 4 | proyectil en f12 |
+| Onda Rayo (rápida) | ↓↘→ + HP | 12 | 1 | 32 | 0 | medio | 0 | 0 | -32 | -32 | -29 | 4 | proyectil en f12 |
+| Puño Ascendente (ligero) | →↓↘ + LP | 3 | 8 | 18 | 100 | medio | 20 | 16 | — | — | — | 9 | derriba; juggle; invencible (all) f1-3; chip 10; aterrizaje 12f |
+| Puño Ascendente (fuerte) | →↓↘ + HP | 4 | 10 | 20 | 135 | medio | 20 | 16 | — | — | — | 11 | derriba; juggle; invencible (all) f1-7; chip 14; aterrizaje 16f |
+| Embestida (corta) | ↓↙← + LK | 10 | 6 | 16 | 70 | medio | 18 | 14 | -7 | -3 | +3 | 9 | chip 8; cancel: super |
+| Embestida (larga) | ↓↙← + HK | 13 | 7 | 18 | 95 | medio | 20 | 16 | — | — | — | 10 | derriba; invencible (projectile) f6-16; chip 10 |
+| Tormenta Final | ↓↘→↓↘→ + P  (o HP + HK) | 10 | 1 | 38 | 0 | medio | 0 | 0 | -38 | -38 | -32 | 0 | invencible (all) f1-12; proyectil en f10; cuesta 1000 de medidor |
+
+| Proyectil | Velocidad | Golpes | Daño | Chip | Hitstun | Blockstun | Vida |
+|---|---|---|---|---|---|---|---|
+| fb_l | 4.2 px/f | 1 | 70 | 12 | 18 | 16 | 260f |
+| fb_h | 7.5 px/f | 1 | 75 | 12 | 18 | 16 | 180f |
+| super | 5.5 px/f | 5 | 62 | 18 | 24 | 18 | 220f |
 
 <!-- FRAMEDATA:END -->

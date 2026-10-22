@@ -2,6 +2,7 @@ import { getChar } from "../data/characters";
 import { toPx } from "../sim/fixed";
 import type { FighterState, GameState } from "../sim/types";
 import { poseFor } from "./animator";
+import { drawProjectiles } from "./projectiles";
 import { Camera } from "./camera";
 import { drawDebugBoxes, drawDebugPanel, type InputLog } from "./debug";
 import { drawFighterBody, resolvePalette, solve } from "./skeleton";
@@ -24,6 +25,8 @@ export interface RenderOptions {
   altPalette: [boolean, boolean];
   fx: [FighterFx, FighterFx];
   time: number;
+  /** 0..1 oscurecer el escenario (pantalla de súper). */
+  dim?: number;
 }
 
 export const NO_FX: FighterFx = { flash: 0, jitter: 0, glow: null, glowAlpha: 0 };
@@ -89,10 +92,15 @@ export class GameRenderer {
   drawWorld(s: GameState, stage: Stage, opt: RenderOptions): void {
     const ctx = this.ctx;
     stage.drawBack(ctx, this.cam, opt.time);
+    if (opt.dim) {
+      ctx.fillStyle = `rgba(4,4,16,${opt.dim})`;
+      ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    }
     for (const f of s.fighters) drawShadow(ctx, this.cam, f);
     // El personaje que ataca se dibuja encima.
     const order = drawOrder(s);
     for (const i of order) drawFighter(ctx, this.cam, s, s.fighters[i], opt.altPalette[i], opt.fx[i]);
+    drawProjectiles(ctx, this.cam, s, opt.time, opt.altPalette);
     stage.drawFront?.(ctx, this.cam, opt.time);
   }
 

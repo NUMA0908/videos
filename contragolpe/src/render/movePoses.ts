@@ -37,4 +37,15 @@ registerPoses({
   "rayo.jhp_s": ik({ torso: 34, head: -6, hF: [64, -4], hB: [24, 30], ...TUCK, ...AIR }),
   "rayo.jhk_w": ik({ torso: -6, head: -6, hF: [34, 50], hB: [20, 54], fF: [24, -26], fB: [4, -44], ...AIR }),
   "rayo.jhk_s": ik({ torso: -18, head: -4, hF: [24, 58], hB: [4, 50], fF: [82, -36], fB: [-8, -40], ...AIR }),
+
+  "rayo.throw_w": ik({ torso: 14, head: -6, hF: [52, 54], hB: [44, 58], fF: [36, -80], fB: [-36, -78], open: 1 }),
+  "rayo.fb_w": ik({ torso: -6, head: -6, hF: [-14, 32], hB: [-20, 38], fF: [42, -80], fB: [-36, -80], open: 1 }),
+  "rayo.fb_s": ik({ torso: 20, head: -10, hF: [62, 46], hB: [58, 52], fF: [48, -78], fB: [-42, -80], open: 1 }),
+  "rayo.dp_w": ik({ torso: 22, head: -10, hF: [22, 6], hB: [30, 40], ...CROUCH_LEGS }),
+  "rayo.dp_s": ik({ torso: -4, head: -16, hF: [26, 122], hB: [10, 40], fF: [22, -70], fB: [-8, -46], ...AIR }),
+  "rayo.dp_fall": ik({ torso: 8, head: -8, hF: [30, 72], hB: [2, 60], fF: [20, -78], fB: [-14, -74], ...AIR }),
+  "rayo.rush_w": ik({ torso: 12, head: -8, hF: [10, 40], hB: [-10, 40], fF: [32, -74], fB: [-46, -72] }),
+  "rayo.rush_s": ik({ torso: 34, head: -10, hF: [60, 54], hB: [40, 30], fF: [56, -72], fB: [-52, -66] }),
+  "rayo.super_w": ik({ torso: -14, head: -8, hF: [-22, 50], hB: [-26, 46], fF: [46, -80], fB: [-40, -80], open: 1 }),
+  "rayo.super_s": ik({ torso: 22, head: -10, hF: [70, 56], hB: [66, 62], fF: [58, -76], fB: [-46, -78], open: 1 }),
 });

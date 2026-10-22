@@ -115,3 +115,30 @@ export function measureAdvantage(
   if (contactFrame < 0) throw new Error("el ataque no conectó");
   return { adv: defFree - atkFree, contact, hitstop, atkFree, defFree, contactFrame, counter, damage };
 }
+
+/** Numpad (con J1 mirando a la derecha) → bitmask. */
+export function dirMask(d: number, facing: 1 | -1 = 1): number {
+  const fwd = facing === 1 ? Btn.RIGHT : Btn.LEFT;
+  const back = facing === 1 ? Btn.LEFT : Btn.RIGHT;
+  const h = d % 3 === 0 ? fwd : d % 3 === 1 ? back : 0;
+  const v = d >= 7 ? Btn.UP : d <= 3 ? Btn.DOWN : 0;
+  return h | v;
+}
+
+/** Secuencia de inputs para un motion: cada dirección `hold` frames; el botón en el último frame. */
+export function motion(dirs: number[], button: number, hold = 2, facing: 1 | -1 = 1): number[] {
+  const out: number[] = [];
+  for (const d of dirs) for (let i = 0; i < hold; i++) out.push(dirMask(d, facing));
+  out[out.length - 1] |= button;
+  return out;
+}
+
+/** Ejecuta inputs de J1 (secuencia) y J2 (fijo), devolviendo los eventos de todos los frames. */
+export function playSeq(s: GameState, seq0: number[], in1: number | ((i: number) => number) = 0, extra = 0) {
+  const events: GameState["events"] = [];
+  for (let i = 0; i < seq0.length + extra; i++) {
+    stepInPlace(s, seq0[i] ?? 0, typeof in1 === "function" ? in1(i) : in1);
+    events.push(...s.events);
+  }
+  return events;
+}

@@ -23,6 +23,7 @@ function cycle(keys: string[], phase: number): Pose {
 }
 
 function basePoseFor(mv: MoveData): string {
+  if (mv.motion?.some((m) => m.vy !== undefined)) return mv.anim.recover ?? "jumpDown";
   return mv.stance === "crouch" ? "crouch" : mv.stance === "air" ? "jumpTuck" : "stance";
 }
 
@@ -85,11 +86,13 @@ export function poseFor(f: FighterState, simFrame: number): Pose {
       return lerpPose(getPose("dashF"), getPose("stance"), clamp01((f.t - 10) / 8));
     case "dashB":
       return lerpPose(getPose("dashB"), getPose("stance"), clamp01((f.t - 12) / 10));
-    case "attack":
-    case "fall": {
+    case "attack": {
       if (!f.move) return getPose("stance");
-      const mv = getMove(f.char, f.move);
-      return movePose(mv, f.state === "fall" ? mv.startup + mv.active + mv.recovery : f.mf);
+      return movePose(getMove(f.char, f.move), f.mf);
+    }
+    case "fall": {
+      const mv = f.move ? getMove(f.char, f.move) : null;
+      return getPose(mv?.anim.recover ?? "jumpDown");
     }
     case "blockstun":
       return getPose(f.crouching ? "blockCrouch" : "blockStand");

@@ -149,9 +149,15 @@ export interface ProjectileData {
   /** Vida máxima en frames. */
   life: number;
   knockdown?: boolean;
+  /** Solo el último golpe derriba (multi-hit). */
+  finalKnockdown?: boolean;
+  /** Puede golpear a un rival que cae (necesario para multi-hit). */
+  juggle?: boolean;
   launch?: { vx: number; vy: number };
   meterOnHit: number;
   meterOnBlock: number;
+  /** Fuerza al chocar con otro proyectil (si es mayor, sobrevive). */
+  priority: number;
   /** Visual (render). */
   look: "orb" | "spark" | "wave" | "beam";
   radius: number;
