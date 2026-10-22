@@ -25,3 +25,19 @@ describe("ajustes del juego", () => {
     expect(parseSettings(JSON.parse(JSON.stringify(d))).keys[0].LP).toEqual(["KeyG"]);
   });
 });
+
+describe("menús con desplazamiento", () => {
+  it("la fila seleccionada siempre es visible y la ventana no se sale de la lista", async () => {
+    const { menuScroll } = await import("../src/ui/ui");
+    for (const count of [3, 10, 16, 25]) {
+      for (let sel = 0; sel < count; sel++) {
+        const rows = 10;
+        const first = menuScroll(count, sel, rows);
+        expect(first).toBeGreaterThanOrEqual(0);
+        expect(sel).toBeGreaterThanOrEqual(first);
+        expect(sel).toBeLessThan(first + rows);
+        expect(first + Math.min(rows, count)).toBeLessThanOrEqual(count);
+      }
+    }
+  });
+});

@@ -6,7 +6,7 @@ import type { WorldBox } from "../sim/boxes";
 import { toPx } from "../sim/fixed";
 import { allProjectileBoxes } from "../sim/projectiles";
 import { createMatch } from "../sim/state";
-import { step } from "../sim/step";
+import { stepInPlace } from "../sim/step";
 import type { FighterState, GameState, MatchConfig, Side, SimEvent } from "../sim/types";
 import { poseFor } from "../render/animator";
 import { InputLog } from "../render/debug";
@@ -101,7 +101,10 @@ export class FightScene implements Scene {
   update(): void {
     const input = this.app.input;
     if (input.keyPressed("F1")) this.debug = !this.debug;
-    this.fx.settings = { shake: this.app.settings.shake, flashes: this.app.settings.flashes };
+    const feel = this.fx.settings;
+    feel.shake = this.app.settings.shake;
+    feel.flashes = this.app.settings.flashes;
+    feel.lowPower = this.app.settings.lowPower;
     if (this.paused) return;
     if (this.onMatchOver === null && this.state.round.phase === "over" && this.state.round.t > 60 && input.menu().confirm) {
       this.restart();
@@ -110,8 +113,11 @@ export class FightScene implements Scene {
 
     const m0 = this.inputs[0] ? this.inputs[0](this.state, 0) : input.sample(0);
     const m1 = this.inputs[1] ? this.inputs[1](this.state, 1) : input.sample(1);
-    this.lastInputs = [m0, m1];
-    this.state = step(this.state, m0, m1);
+    this.lastInputs[0] = m0;
+    this.lastInputs[1] = m1;
+    // En el sitio: mismo resultado que step() (que es clonar + stepInPlace) pero sin copiar el estado en cada
+    // tick. Nadie guarda referencias a estados anteriores (la IA y el HUD copian lo que necesitan).
+    stepInPlace(this.state, m0, m1);
     const s = this.state;
     this.logs[0].push(m0, s.fighters[0].facing);
     this.logs[1].push(m1, s.fighters[1].facing);
@@ -233,9 +239,10 @@ export class FightScene implements Scene {
       fx: [this.fxFor(s.fighters[0]), this.fxFor(s.fighters[1])],
       time: this.app.time,
       dim: this.superDim,
+      lowPower: this.app.settings.lowPower,
     });
     this.fx.draw(ctx, this.renderer.cam);
-    if (s.freeze > 0 && s.freezeOwner !== -1) this.drawSpeedLines(ctx, s);
+    if (s.freeze > 0 && s.freezeOwner !== -1 && !this.app.settings.lowPower) this.drawSpeedLines(ctx, s);
     if (this.fx.flash > 0) {
       ctx.globalAlpha = this.fx.flash;
       ctx.fillStyle = this.fx.flashColor;

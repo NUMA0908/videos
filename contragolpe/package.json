@@ -17,12 +17,14 @@
     "app:dev": "node scripts/electron-dev.mjs",
     "icon": "node scripts/make-icon.mjs",
     "app:build": "npm run build && npm run electron:compile && electron-builder --dir",
-    "app:dist": "npm run build && npm run electron:compile && electron-builder"
+    "app:dist": "npm run build && npm run electron:compile && electron-builder",
+    "app:smoke": "node scripts/smoke-electron.mjs"
   },
   "devDependencies": {
     "@types/node": "22.19.1",
     "electron": "44.5.1",
     "electron-builder": "26.17.0",
+    "playwright-core": "1.56.1",
     "tsx": "4.23.15",
     "typescript": "5.9.3",
     "vite": "8.3.5",

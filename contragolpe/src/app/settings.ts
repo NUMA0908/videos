@@ -20,6 +20,8 @@ export interface Settings {
   pauseOnBlur: boolean;
   /** Escritorio: pedir confirmación al cerrar en mitad de una partida. */
   confirmQuit: boolean;
+  /** Bajo consumo: menos partículas, sin brillos caros y lienzo a 1× (portátiles, equipos modestos). */
+  lowPower: boolean;
   keys: [KeyBindings, KeyBindings];
   pads: [PadBindings, PadBindings];
 }
@@ -39,6 +41,7 @@ export function defaultSettings(): Settings {
     pixelPerfect: false,
     pauseOnBlur: true,
     confirmQuit: true,
+    lowPower: false,
     keys: structuredClone(DEFAULT_KEYS),
     pads: [structuredClone(DEFAULT_PAD), structuredClone(DEFAULT_PAD)],
   };

@@ -391,6 +391,16 @@ simulaciones masivas usan `stepInPlace` sin clonar (~600 partidos completos en ~
 - [x] Teclado y mando; controles remapeables; opciones de accesibilidad.
 - [x] DESIGN.md con decisiones y toda la frame data; README con cómo jugar y lista de movimientos.
 
+App de escritorio:
+- [x] `contextIsolation`, `nodeIntegration: false`, `sandbox`, preload mínimo, CSP estricta, sin navegación
+  externa ni ventanas nuevas, un solo ejemplar (§18, con tests de CSP/orígenes).
+- [x] Pantalla completa (F11/Alt+Enter), escalado 16:9 con barras y por enteros, ventana recordada, sin menú.
+- [x] 60 ticks fijos a 30–240 Hz (tests), pausa y atenuación al perder el foco, `backgroundThrottling: false`.
+- [x] Configuración JSON atómica con versión/migración y recuperación de archivos dañados (tests), registros con rotación.
+- [x] Instaladores: Windows NSIS + portable, Linux AppImage, macOS dmg (CI); construido y ejecutado en local: Linux.
+- [x] Arranque < 3 s, 60 FPS estables sin tirones (medido), modo bajo consumo, smoke test en CI.
+- [ ] Firma de código y actualizaciones automáticas: preparadas pero sin certificados ni servidor (README).
+
 ## 18. App de escritorio (Electron)
 
 ### Decisión: Electron + electron-builder
@@ -485,6 +495,40 @@ solo en ese caso; un usuario normal nunca lo necesita.
 - **Sin firma** (no hay certificados): Windows mostrará SmartScreen y macOS Gatekeeper. Pasos para firmar y para
   activar las actualizaciones automáticas (electron-updater, hoy desactivado con `AUTO_UPDATE = false` en
   `electron/main.ts`): ver README.
+
+### Rendimiento y pruebas de la app (fase 5)
+Medido con la app **empaquetada** (`release/linux-unpacked`) bajo Xvfb en el contenedor (Linux x64, GPU por
+software SwiftShader: es el peor caso; en una máquina con GPU real el dibujo cuesta menos). Lo mide el smoke test
+y lo deja en `release/smoke-metrics.json` (también en cada artefacto del CI, por plataforma).
+
+| Métrica | Resultado | Objetivo |
+|---|---|---|
+| Arranque hasta el menú interactivo | 0,4–0,7 s (AppImage: ~13 s la 1.ª vez en el contenedor, por extraerse sin FUSE) | < 3 s |
+| FPS / ticks por segundo en combate | 60 / 60 | 60 estables |
+| Tiempo de frame en 30 s de combate (1800 frames) | p50 16,7 ms · p99 16,8 ms · 0 frames > 20 ms | sin tirones |
+| Coste por tick / por dibujo | ~0,2 ms / ~0,6–0,9 ms | — |
+| Montón JS del juego | menú ~3 MB · combate 4,5–7 MB | — |
+| Memoria total (conjunto de trabajo, 4–5 procesos) | menú ~500 MB · combate ~620 MB | — |
+
+- La memoria total es la suma del *working set* de todos los procesos de Electron (principal ~160 MB, GPU
+  ~140 MB, renderer ~130–170 MB, audio/utilidades ~80–150 MB) y cuenta varias veces las páginas compartidas: el
+  consumo real es menor. El juego en sí ocupa menos de 10 MB de montón.
+- **Basura por frame (GC)**: el combate ya no copia el estado en cada tick (`stepInPlace`, mismo resultado
+  que `step`, verificado por test), las partículas y anillos salen de una **reserva** y se compactan en el sitio
+  (sin `filter`), la geometría "aleatoria" de los escenarios se calcula una vez al cargar, los colores sombreados
+  se memorizan y la lectura de entrada no crea cierres. Queda ~1 MB/s de asignaciones de vida muy corta (sobre
+  todo números y objetos temporales del dibujo con Canvas): el recolector joven las limpia ~1 vez por segundo en
+  fracciones de milisegundo y no aparecen como tirones (0 frames > 20 ms en las mediciones).
+- **Modo bajo consumo** (Opciones): la mitad de partículas, sin estelas de golpe, sin desenfoque en los contornos
+  (lo más caro de dibujar), sin líneas de velocidad de la súper ni lluvia, y lienzo a 1× aunque la pantalla sea HiDPI.
+  La simulación no cambia.
+- **Smoke test** (`npm run app:smoke`, Playwright + Electron sobre la app empaquetada): arranque → menú →
+  "Versus contra CPU" → personaje → escenario → combate con inputs → pausa → "Salir al menú" → "Salir del juego".
+  Falla con cualquier error de consola o de página, si la app no se cierra sola, si el registro tiene líneas
+  `[error]` o si no se guardó el estado de la ventana. Corre en el CI en las tres plataformas.
+- Lo que **no** se pudo verificar aquí (sin hardware): monitores de 120/144/240 Hz reales (cubierto por los tests
+  del bucle con frecuencias simuladas), pantalla completa en un monitor físico, mandos reales y los instaladores
+  de Windows/macOS (los construye y prueba el CI). Quedan en la lista de pruebas manuales del README.
 
 ## 19. Frame data completa
 

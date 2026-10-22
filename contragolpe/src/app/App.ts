@@ -23,7 +23,7 @@ export class App {
   focused = true;
 
   resize(): void {
-    this.scale = fitCanvas(this.canvas, this.settings.pixelPerfect);
+    this.scale = fitCanvas(this.canvas, this.settings.pixelPerfect, this.settings.lowPower ? 1 : 2);
   }
 
   async toggleFullscreen(): Promise<void> {

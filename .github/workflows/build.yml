@@ -32,16 +32,19 @@ jobs:
             target: --win nsis portable
             artifacts: |
               contragolpe/release/*.exe
+              contragolpe/release/smoke-metrics.json
           - name: Linux (AppImage)
             os: ubuntu-latest
             target: --linux AppImage
             artifacts: |
               contragolpe/release/*.AppImage
+              contragolpe/release/smoke-metrics.json
           - name: macOS (dmg)
             os: macos-latest
             target: --mac dmg
             artifacts: |
               contragolpe/release/*.dmg
+              contragolpe/release/smoke-metrics.json
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -78,6 +81,14 @@ jobs:
 
       - name: Empaquetar
         run: npx electron-builder ${{ matrix.target }} --publish never
+
+      # Ubuntu 24.04 restringe los espacios de nombres sin privilegios que usa el sandbox de Chromium.
+      - name: Permitir el sandbox de Chromium (Linux)
+        if: runner.os == 'Linux'
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      - name: Smoke test (app empaquetada; menú → combate → salir)
+        run: ${{ runner.os == 'Linux' && 'xvfb-run -a ' || '' }}npm run app:smoke
 
       - uses: actions/upload-artifact@v4
         with:

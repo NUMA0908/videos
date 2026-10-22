@@ -49,6 +49,22 @@ interface Smear {
 export interface FeelSettings {
   shake: boolean;
   flashes: boolean;
+  /** Bajo consumo: la mitad de partículas y sin estelas. */
+  lowPower: boolean;
+}
+
+/**
+ * Quita en el sitio los elementos agotados (sin crear arrays nuevos cada tick) y devuelve los que sobran
+ * a la reserva para reutilizarlos: en combate no se genera basura para el recolector.
+ */
+function compact<T extends { life: number }>(list: T[], pool?: T[]): void {
+  let n = 0;
+  for (let i = 0; i < list.length; i++) {
+    const item = list[i];
+    if (item.life > 0) list[n++] = item;
+    else pool?.push(item);
+  }
+  list.length = n;
 }
 
 export class Effects {
@@ -56,17 +72,26 @@ export class Effects {
   private particles: Particle[] = [];
   private rings: Ring[] = [];
   private smears: Smear[] = [];
+  private particlePool: Particle[] = [];
+  private ringPool: Ring[] = [];
   private shakeMag = 0;
   private shakeT = 0;
   /** Destello de pantalla (0..1) y su color. */
   flash = 0;
   flashColor = "#ffffff";
-  settings: FeelSettings = { shake: true, flashes: true };
+  settings: FeelSettings = { shake: true, flashes: true, lowPower: false };
+
+  /** Partículas vivas (para medir y para los tests). */
+  get liveParticles(): number {
+    return this.particles.length;
+  }
 
   clear(): void {
-    this.particles = [];
-    this.rings = [];
-    this.smears = [];
+    for (const p of this.particles) this.particlePool.push(p);
+    for (const r of this.rings) this.ringPool.push(r);
+    this.particles.length = 0;
+    this.rings.length = 0;
+    this.smears.length = 0;
     this.shakeMag = 0;
     this.flash = 0;
   }
@@ -85,30 +110,52 @@ export class Effects {
     this.flashColor = color;
   }
 
+  /** Saca una partícula de la reserva (o crea una si está vacía) y la añade a las vivas. */
+  private spawn(kind: Kind, x: number, y: number, vx: number, vy: number, life: number, size: number, color: string, gravity: number, drag: number): void {
+    const p = this.particlePool.pop() ?? ({} as Particle);
+    p.kind = kind;
+    p.x = x;
+    p.y = y;
+    p.vx = vx;
+    p.vy = vy;
+    p.life = life;
+    p.max = life;
+    p.size = size;
+    p.color = color;
+    p.gravity = gravity;
+    p.drag = drag;
+    this.particles.push(p);
+  }
+
+  /** En bajo consumo se emite la mitad (redondeando hacia arriba: nunca desaparece un efecto). */
+  private count(n: number): number {
+    return this.settings.lowPower ? Math.ceil(n / 2) : n;
+  }
+
   private burst(x: number, y: number, n: number, opts: Partial<Particle> & { speed: [number, number]; angle?: [number, number] }): void {
-    const [a0, a1] = opts.angle ?? [0, Math.PI * 2];
+    const a0 = opts.angle ? opts.angle[0] : 0;
+    const a1 = opts.angle ? opts.angle[1] : Math.PI * 2;
+    n = this.count(n);
     for (let i = 0; i < n; i++) {
       const a = this.rng.range(a0, a1);
       const sp = this.rng.range(opts.speed[0], opts.speed[1]);
       const life = Math.round((opts.max ?? 16) * this.rng.range(0.7, 1.2));
-      this.particles.push({
-        kind: opts.kind ?? "spark",
-        x,
-        y,
-        vx: Math.cos(a) * sp,
-        vy: Math.sin(a) * sp,
-        life,
-        max: life,
-        size: (opts.size ?? 3) * this.rng.range(0.7, 1.3),
-        color: opts.color ?? "#ffffff",
-        gravity: opts.gravity ?? 0,
-        drag: opts.drag ?? 0.88,
-      });
+      const size = (opts.size ?? 3) * this.rng.range(0.7, 1.3);
+      this.spawn(opts.kind ?? "spark", x, y, Math.cos(a) * sp, Math.sin(a) * sp, life, size, opts.color ?? "#ffffff", opts.gravity ?? 0, opts.drag ?? 0.88);
     }
   }
 
   private ring(x: number, y: number, r: number, grow: number, frames: number, color: string, width = 3): void {
-    this.rings.push({ x, y, r, grow, life: frames, max: frames, color, width });
+    const g = this.ringPool.pop() ?? ({} as Ring);
+    g.x = x;
+    g.y = y;
+    g.r = r;
+    g.grow = grow;
+    g.life = frames;
+    g.max = frames;
+    g.color = color;
+    g.width = width;
+    this.rings.push(g);
   }
 
   /** Traduce los eventos de la simulación de este tick en efectos. Coordenadas en px de mundo (y hacia arriba). */
@@ -195,27 +242,22 @@ export class Effects {
   }
 
   private dust(x: number, y: number, n: number, dir: number): void {
+    n = this.count(n);
     for (let i = 0; i < n; i++) {
       const life = Math.round(this.rng.range(18, 30));
-      this.particles.push({
-        kind: "dust",
-        x: x + this.rng.range(-20, 20),
-        y: y + this.rng.range(0, 6),
-        vx: this.rng.range(-1.6, 1.6) - dir * 1.8,
-        vy: this.rng.range(0.2, 1.4),
-        life,
-        max: life,
-        size: this.rng.range(6, 12),
-        color: "rgba(230,215,190,0.55)",
-        gravity: 0,
-        drag: 0.92,
-      });
+      const px = x + this.rng.range(-20, 20);
+      const py = y + this.rng.range(0, 6);
+      const vx = this.rng.range(-1.6, 1.6) - dir * 1.8;
+      const vy = this.rng.range(0.2, 1.4);
+      this.spawn("dust", px, py, vx, vy, life, this.rng.range(6, 12), "rgba(230,215,190,0.55)", 0, 0.92);
     }
   }
 
   /** Estela del golpe: el renderer registra dónde está la extremidad que golpea en cada frame activo. */
   trackSmear(side: 0 | 1, active: boolean, point: { x: number; y: number } | null, color: string): void {
-    let sm = this.smears.find((m) => m.side === side && m.life === 6);
+    if (this.settings.lowPower) return;
+    let sm: Smear | undefined;
+    for (const m of this.smears) if (m.side === side && m.life === 6) sm = m;
     if (active && point) {
       if (!sm) {
         sm = { side, points: [], color, life: 6 };
@@ -237,15 +279,15 @@ export class Effects {
       p.life--;
       if (p.kind === "dust") p.size *= 1.03;
     }
-    this.particles = this.particles.filter((p) => p.life > 0);
+    compact(this.particles, this.particlePool);
     for (const r of this.rings) {
       r.r += r.grow;
       r.grow *= 0.88;
       r.life--;
     }
-    this.rings = this.rings.filter((r) => r.life > 0);
+    compact(this.rings, this.ringPool);
     for (const m of this.smears) if (m.life < 6) m.life--;
-    this.smears = this.smears.filter((m) => m.life > 0);
+    compact(this.smears);
     if (this.shakeT > 0) this.shakeT--;
     else this.shakeMag *= 0.6;
     this.flash *= 0.8;

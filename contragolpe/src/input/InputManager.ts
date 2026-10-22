@@ -130,9 +130,12 @@ export class InputManager {
   sample(player: 0 | 1): number {
     let mask = 0;
     const kb = this.keys[player];
-    for (const a of ACTIONS) if (kb[a].some((c) => this.down.has(c) || this.tapped.has(c))) mask |= ACTION_BIT[a];
     const pb = this.pads[player];
-    for (const a of ACTIONS) if (pb[a].some((b) => this.padDown(player, b))) mask |= ACTION_BIT[a];
+    // Bucles simples (sin cierres): se llama dos veces por tick.
+    for (const a of ACTIONS) {
+      for (const c of kb[a]) if (this.down.has(c) || this.tapped.has(c)) mask |= ACTION_BIT[a];
+      for (const b of pb[a]) if (this.padDown(player, b)) mask |= ACTION_BIT[a];
+    }
     for (const m of PAD_MACROS) if (this.padDown(player, m.button)) mask |= m.mask;
     const ax = this.padAxes[player];
     if (ax && ax.length >= 2) {

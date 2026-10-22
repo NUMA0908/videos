@@ -46,6 +46,38 @@ fiables desde Linux). El workflow `.github/workflows/build.yml` lo hace en GitHu
 Configuración y registros: `%APPDATA%\CONTRAGOLPE` (Windows), `~/.config/CONTRAGOLPE` (Linux),
 `~/Library/Application Support/CONTRAGOLPE` (macOS); los registros están en la subcarpeta `logs/`.
 
+### Pruebas automáticas de la app
+
+```bash
+npm run app:build                 # empaqueta en release/<plataforma>-unpacked
+npm run app:smoke                 # smoke test: menú → versus → salir, sin errores (Linux sin pantalla: xvfb-run -a npm run app:smoke)
+node scripts/smoke-electron.mjs --source   # lo mismo sin empaquetar (dist/ + dist-electron/)
+```
+
+El smoke test deja las mediciones (arranque, FPS, memoria) en `release/smoke-metrics.json`. Si se ejecuta como
+root (contenedores) añade `--no-sandbox` automáticamente; un usuario normal nunca lo necesita.
+
+### Pruebas manuales (antes de publicar una versión)
+
+Lo que no se puede automatizar sin hardware. Marcar en cada plataforma:
+
+1. **Pantalla completa**: F11 y Alt+Enter alternan; la imagen mantiene 16:9 con barras negras; al cerrar en
+   pantalla completa y volver a abrir, se recupera el modo. Opción "Iniciar en pantalla completa".
+2. **Ventana**: cambiar tamaño y posición, cerrar y reabrir → misma ventana. Con dos monitores: cerrar en el
+   secundario, desconectarlo y abrir → la ventana aparece centrada en el principal.
+3. **Monitor de alta frecuencia (120/144/240 Hz)**: con F3 el contador debe marcar FPS = frecuencia del monitor
+   y **60 tps**; el juego no va más rápido (comparar un round de 99 s con un cronómetro).
+4. **Foco**: Alt+Tab en mitad de un combate → se abre la pausa y baja el volumen; al volver, el volumen se
+   recupera y el juego espera a que el jugador continúe. Con "Pausar al perder el foco" en No, solo baja el volumen.
+5. **Cursor**: en combate desaparece a los 2 s sin mover el ratón; reaparece al moverlo y en los menús.
+6. **Cerrar en partida**: con la opción activada pregunta antes de cerrar; en el menú cierra directamente.
+7. **Mando**: conectar antes y después de abrir la app; desconectarlo en mitad de un combate (la partida no
+   debe colgarse ni dar errores; revisar `logs/main.log`).
+8. **Bajo consumo**: activarlo en un portátil con batería; el juego sigue a 60 FPS con menos efectos.
+9. **Instaladores**: Windows (instalar, acceso directo, desinstalar; portable desde una memoria USB),
+   macOS (abrir desde el dmg con clic derecho → Abrir), Linux (AppImage con `chmod +x`).
+10. **Un solo ejemplar**: abrir la app dos veces → la segunda enfoca la primera.
+
 ### Instaladores sin firmar
 
 Los instaladores **no están firmados digitalmente** (el proyecto no tiene certificados). Consecuencias:

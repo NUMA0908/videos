@@ -67,6 +67,15 @@ export class OptionsScene implements Scene {
         },
         hint: "Solo múltiplos exactos de la resolución del juego (bordes negros, imagen más nítida).",
       },
+      {
+        label: "Modo bajo consumo",
+        value: s.lowPower ? "Sí" : "No",
+        change: () => {
+          s.lowPower = !s.lowPower;
+          this.app.resize();
+        },
+        hint: "Menos partículas, sin estelas ni brillos y lienzo a resolución 1×. Para portátiles o equipos modestos.",
+      },
       { label: "Pausar al perder el foco", value: s.pauseOnBlur ? "Sí" : "No", change: () => (s.pauseOnBlur = !s.pauseOnBlur) },
       { label: "Confirmar al salir en partida", value: s.confirmQuit ? "Sí" : "No", change: () => (s.confirmQuit = !s.confirmQuit), hint: "App de escritorio: pregunta antes de cerrar la ventana en mitad de un combate." },
       { label: "Controles del Jugador 1", act: () => this.openControls(0) },
@@ -172,8 +181,10 @@ export class OptionsScene implements Scene {
     }
     drawTitle(ctx, "OPCIONES", 44, 38);
     const items = this.items();
-    drawPanel(ctx, VIEW_W / 2 - 300, 80, 600, items.length * 36 + 24, 0.85);
-    drawMenu(ctx, items, this.sel, VIEW_W / 2 - 270, 110, 540, this.app.time, 36);
+    // Caben 10 filas sobre la línea de ayuda; el resto se desplaza con la selección.
+    const rows = Math.min(items.length, 10);
+    drawPanel(ctx, VIEW_W / 2 - 300, 80, 600, rows * 36 + 24, 0.85);
+    drawMenu(ctx, items, this.sel, VIEW_W / 2 - 270, 110, 540, this.app.time, 36, rows);
     drawFooter(ctx, "↑↓ elegir · ←→ cambiar · Enter confirmar · Esc guardar y volver");
   }
 

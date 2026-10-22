@@ -141,7 +141,21 @@ export function resolvePalette(look: CharacterLook, alt: boolean): Palette {
   return alt ? { ...look.colors, ...look.altColors } : look.colors;
 }
 
+/** Caché de colores sombreados: se piden decenas de veces por frame con los mismos valores. */
+const SHADES = new Map<string, Map<number, string>>();
+
 function shade(hex: string, k: number): string {
+  let byK = SHADES.get(hex);
+  if (!byK) SHADES.set(hex, (byK = new Map()));
+  let c = byK.get(k);
+  if (c === undefined) {
+    c = computeShade(hex, k);
+    if (byK.size < 64) byK.set(k, c);
+  }
+  return c;
+}
+
+function computeShade(hex: string, k: number): string {
   const n = parseInt(hex.slice(1), 16);
   const r = Math.max(0, Math.min(255, Math.round(((n >> 16) & 255) * k)));
   const g = Math.max(0, Math.min(255, Math.round(((n >> 8) & 255) * k)));

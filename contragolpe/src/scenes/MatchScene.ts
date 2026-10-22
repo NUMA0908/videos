@@ -416,8 +416,10 @@ export class MatchScene implements Scene {
       ctx.fillRect(0, 0, VIEW_W, VIEW_H);
       drawTitle(ctx, "PAUSA", 110, 42);
       const items = this.pauseItems();
-      drawPanel(ctx, VIEW_W / 2 - 230, 140, 460, items.length * 36 + 24, 0.9);
-      drawMenu(ctx, items, this.pauseSel, VIEW_W / 2 - 200, 170, 400, this.app.time, 36);
+      // La pausa del entrenamiento tiene más opciones de las que caben: se desplaza con la selección.
+      const rows = Math.min(items.length, 8);
+      drawPanel(ctx, VIEW_W / 2 - 230, 140, 460, rows * 36 + 24, 0.9);
+      drawMenu(ctx, items, this.pauseSel, VIEW_W / 2 - 200, 170, 400, this.app.time, 36, rows);
     }
     if (this.moveListFor) drawMoveList(ctx, this.moveListFor, this.setup.mode === "training");
     if (s.round.phase === "over" && s.round.t > 100) this.drawResults(ctx);

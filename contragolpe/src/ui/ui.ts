@@ -94,9 +94,31 @@ export interface MenuItem {
 }
 
 /** Lista vertical de opciones con la seleccionada resaltada. */
-export function drawMenu(ctx: CanvasRenderingContext2D, items: MenuItem[], selected: number, x: number, y: number, w: number, time: number, rowH = 38): void {
+/** Primera fila visible de una lista con desplazamiento (la seleccionada queda centrada cuando se puede). */
+export function menuScroll(count: number, selected: number, maxRows: number): number {
+  if (count <= maxRows) return 0;
+  return Math.max(0, Math.min(count - maxRows, selected - Math.floor(maxRows / 2)));
+}
+
+export function drawMenu(
+  ctx: CanvasRenderingContext2D,
+  items: MenuItem[],
+  selected: number,
+  x: number,
+  y: number,
+  w: number,
+  time: number,
+  rowH = 38,
+  maxRows = Infinity,
+): void {
+  const first = menuScroll(items.length, selected, maxRows);
+  const last = Math.min(items.length, first + maxRows);
+  // Flechas cuando hay más opciones por encima o por debajo.
+  if (first > 0) drawText(ctx, "▲", x + w / 2, y - rowH / 2 - 4, { size: 12, color: UI.dim, align: "center" });
+  if (last < items.length) drawText(ctx, "▼", x + w / 2, y + (last - first) * rowH - rowH / 2 + 2, { size: 12, color: UI.dim, align: "center" });
   items.forEach((it, i) => {
-    const yy = y + i * rowH;
+    if (i < first || i >= last) return;
+    const yy = y + (i - first) * rowH;
     const sel = i === selected;
     if (sel) {
       ctx.save();

@@ -27,16 +27,18 @@ export interface RenderOptions {
   time: number;
   /** 0..1 oscurecer el escenario (pantalla de súper). */
   dim?: number;
+  /** Bajo consumo: sin desenfoque de sombra en los contornos ni lluvia. */
+  lowPower?: boolean;
 }
 
 export const NO_FX: FighterFx = { flash: 0, jitter: 0, glow: null, glowAlpha: 0 };
 
 /** Ajusta el canvas a la ventana manteniendo 16:9 y la nitidez en pantallas HiDPI. Devuelve la escala base. */
-export function fitCanvas(canvas: HTMLCanvasElement, integer = false): number {
+export function fitCanvas(canvas: HTMLCanvasElement, integer = false, maxDpr = 2): number {
   let scale = Math.min(window.innerWidth / VIEW_W, window.innerHeight / VIEW_H);
   // Escalado por enteros ("pixel perfect"): solo múltiplos exactos de la resolución lógica.
   if (integer && scale >= 1) scale = Math.floor(scale);
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const dpr = Math.min(window.devicePixelRatio || 1, maxDpr);
   canvas.style.width = `${Math.floor(VIEW_W * scale)}px`;
   canvas.style.height = `${Math.floor(VIEW_H * scale)}px`;
   canvas.width = Math.floor(VIEW_W * scale * dpr);
@@ -60,6 +62,7 @@ export function drawFighter(
   f: FighterState,
   alt: boolean,
   fx: FighterFx,
+  lowPower = false,
 ): void {
   const ch = getChar(f.char);
   const pose = poseFor(f, s.frame);
@@ -72,8 +75,11 @@ export function drawFighter(
     // Contorno brillante: se dibuja la silueta ampliada en un color sólido.
     ctx.save();
     ctx.globalAlpha = fx.glowAlpha;
-    ctx.shadowColor = fx.glow;
-    ctx.shadowBlur = 18;
+    // El desenfoque de sombra es lo más caro del dibujo: en bajo consumo el contorno queda nítido.
+    if (!lowPower) {
+      ctx.shadowColor = fx.glow;
+      ctx.shadowBlur = 18;
+    }
     for (const [dx, dy] of [[-3, 0], [3, 0], [0, -3], [0, 3]]) {
       ctx.save();
       ctx.translate(dx, dy);
@@ -121,9 +127,9 @@ export class GameRenderer {
     for (const f of s.fighters) drawShadow(ctx, this.cam, f);
     // El personaje que ataca se dibuja encima.
     const order = drawOrder(s);
-    for (const i of order) drawFighter(ctx, this.cam, s, s.fighters[i], opt.altPalette[i], opt.fx[i]);
+    for (const i of order) drawFighter(ctx, this.cam, s, s.fighters[i], opt.altPalette[i], opt.fx[i], opt.lowPower);
     drawProjectiles(ctx, this.cam, s, opt.time, opt.altPalette);
-    stage.drawFront?.(ctx, this.cam, opt.time);
+    if (!opt.lowPower) stage.drawFront?.(ctx, this.cam, opt.time);
   }
 
   drawDebug(s: GameState, logs: [InputLog, InputLog], projectileBoxes: Parameters<typeof drawDebugBoxes>[3]): void {

@@ -72,6 +72,13 @@ function floorPlanks(
 // 1. Muelle al atardecer
 // ---------------------------------------------------------------------------
 
+// Geometría "aleatoria" fija de los escenarios: se calcula una vez al cargar, no en cada frame.
+const harborCityRng = new Rng(7);
+const HARBOR_SKYLINE: number[] = [];
+for (let x = -400; x < 1400; x += 34) HARBOR_SKYLINE.push(harborCityRng.range(14, 60));
+const harborLightsRng = new Rng(11);
+const HARBOR_LIGHTS = Array.from({ length: 70 }, () => ({ x: harborLightsRng.range(-380, 1380), y: harborLightsRng.range(286, 330) }));
+
 const harborRng = new Rng(42);
 const HARBOR_BOATS = Array.from({ length: 6 }, (_, i) => ({
   x: 120 + i * 300 + harborRng.range(-60, 60),
@@ -133,9 +140,9 @@ export const HARBOR: Stage = {
       ctx.fillStyle = "#5a2f55";
       ctx.beginPath();
       ctx.moveTo(-400, 336);
-      const r = new Rng(7);
-      for (let x = -400; x < 1400; x += 34) {
-        const h = r.range(14, 60);
+      for (let i = 0; i < HARBOR_SKYLINE.length; i++) {
+        const x = -400 + i * 34;
+        const h = HARBOR_SKYLINE[i];
         ctx.lineTo(x, 336 - h);
         ctx.lineTo(x + 30, 336 - h);
       }
@@ -143,15 +150,9 @@ export const HARBOR: Stage = {
       ctx.closePath();
       ctx.fill();
       // Ventanas que se encienden
-      const w = new Rng(11);
-      for (let i = 0; i < 70; i++) {
-        const x = w.range(-380, 1380);
-        const y = w.range(286, 330);
-        const on = Math.sin(time * 0.7 + i * 1.7) > -0.2;
-        if (on) {
-          ctx.fillStyle = "rgba(255,214,140,0.8)";
-          ctx.fillRect(x, y, 3, 3);
-        }
+      ctx.fillStyle = "rgba(255,214,140,0.8)";
+      for (let i = 0; i < HARBOR_LIGHTS.length; i++) {
+        if (Math.sin(time * 0.7 + i * 1.7) > -0.2) ctx.fillRect(HARBOR_LIGHTS[i].x, HARBOR_LIGHTS[i].y, 3, 3);
       }
     });
 
@@ -304,6 +305,14 @@ export const HARBOR: Stage = {
 const roofRng = new Rng(9);
 const ROOF_STARS = Array.from({ length: 70 }, () => ({ x: roofRng.range(-400, 1400), y: roofRng.range(10, 220), p: roofRng.range(0, 6), r: roofRng.range(0.6, 1.8) }));
 const ROOF_FAR = Array.from({ length: 34 }, (_, i) => ({ x: -500 + i * 60 + roofRng.range(-10, 10), w: roofRng.range(40, 70), h: roofRng.range(80, 220) }));
+const roofWinRng = new Rng(5);
+const ROOF_WINDOWS = Array.from({ length: 160 }, (_, i) => {
+  const b = ROOF_FAR[i % ROOF_FAR.length];
+  return {
+    x: b.x + 6 + roofWinRng.int(Math.max(1, Math.floor(b.w - 12))),
+    y: 400 - b.h + 10 + roofWinRng.int(Math.max(1, Math.floor(b.h - 20))),
+  };
+});
 const ROOF_MID = Array.from({ length: 12 }, (_, i) => ({
   x: -420 + i * 180 + roofRng.range(-20, 20),
   w: roofRng.range(110, 160),
@@ -358,14 +367,10 @@ export const ROOFTOP: Stage = {
     layer(ctx, cam, 0.12, () => {
       ctx.fillStyle = "#14102e";
       for (const b of ROOF_FAR) ctx.fillRect(b.x, 400 - b.h, b.w, b.h + 80);
-      const w = new Rng(5);
-      for (let i = 0; i < 160; i++) {
-        const b = ROOF_FAR[i % ROOF_FAR.length];
-        const x = b.x + 6 + w.int(Math.max(1, Math.floor(b.w - 12)));
-        const y = 400 - b.h + 10 + w.int(Math.max(1, Math.floor(b.h - 20)));
+      for (let i = 0; i < ROOF_WINDOWS.length; i++) {
         if (Math.sin(time * 0.5 + i * 2.3) > -0.3) {
           ctx.fillStyle = i % 5 === 0 ? "rgba(120,220,255,0.8)" : "rgba(255,210,140,0.75)";
-          ctx.fillRect(x, y, 4, 5);
+          ctx.fillRect(ROOF_WINDOWS[i].x, ROOF_WINDOWS[i].y, 4, 5);
         }
       }
     });
