@@ -51,3 +51,67 @@ export function nonIntegerPaths(value: unknown, path = "state"): string[] {
     return Object.entries(value).flatMap(([k, v]) => nonIntegerPaths(v, `${path}.${k}`));
   return [];
 }
+
+import { px } from "../src/sim/fixed";
+import { NEUTRAL_STATES } from "../src/sim/fighter";
+import type { FighterState } from "../src/sim/types";
+
+/** Coloca a los personajes separados `gapPx` (centro a centro) en mitad del escenario, mirándose. */
+export function placeAt(s: GameState, gapPx: number, centerPx = TUNING.stage.width / 2): GameState {
+  const [a, b] = s.fighters;
+  a.x = px(centerPx - gapPx / 2);
+  b.x = px(centerPx + gapPx / 2);
+  a.facing = 1;
+  b.facing = -1;
+  return s;
+}
+
+export const isActionable = (f: FighterState): boolean => NEUTRAL_STATES.has(f.state);
+
+/**
+ * Mide la ventaja real tras un contacto: el atacante (J1) pulsa `button` en el frame 0;
+ * el defensor (J2) sostiene `defInput`. Devuelve frames de ventaja (positivo = atacante) y el tipo de contacto.
+ */
+export function measureAdvantage(
+  s: GameState,
+  button: number,
+  defInput: number | ((i: number) => number),
+  atkHold = 0,
+): {
+  adv: number;
+  contact: string;
+  hitstop: number;
+  atkFree: number;
+  defFree: number;
+  contactFrame: number;
+  counter: boolean;
+  damage: number;
+} {
+  let contactFrame = -1;
+  let counter = false;
+  let damage = 0;
+  let contact = "none";
+  let atkFree = -1;
+  let defFree = -1;
+  let hitstop = 0;
+  for (let i = 0; i < 200; i++) {
+    const d = typeof defInput === "function" ? defInput(i) : defInput;
+    stepInPlace(s, i === 0 ? button | atkHold : atkHold, d);
+    const [a, b] = s.fighters;
+    if (contactFrame < 0 && a.contact !== "none") {
+      contactFrame = i;
+      contact = a.contact;
+      hitstop = a.hitstop;
+      const ev = s.events.find((e) => e.type === "hit" && e.side === 0);
+      counter = !!ev?.counter;
+      damage = ev?.damage ?? 0;
+    }
+    if (contactFrame >= 0) {
+      if (atkFree < 0 && isActionable(a)) atkFree = i;
+      if (defFree < 0 && isActionable(b)) defFree = i;
+      if (atkFree >= 0 && defFree >= 0) break;
+    }
+  }
+  if (contactFrame < 0) throw new Error("el ataque no conectó");
+  return { adv: defFree - atkFree, contact, hitstop, atkFree, defFree, contactFrame, counter, damage };
+}

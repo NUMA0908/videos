@@ -88,8 +88,16 @@ describe("motion inputs", () => {
 });
 
 describe("buffer de botones", () => {
-  it("una pulsación vive inputBuffer frames y luego caduca", () => {
+  /** Personaje ocupado (en hitstun) para que la pulsación quede esperando en el buffer. */
+  const busy = () => {
     const s = readyMatch();
+    s.fighters[0].state = "hitstun";
+    s.fighters[0].stun = 60;
+    return s;
+  };
+
+  it("una pulsación vive inputBuffer frames y luego caduca", () => {
+    const s = busy();
     run(s, 1, LP);
     expect(s.fighters[0].buf[0]).toBe(0);
     run(s, TUNING.inputBuffer, LP);
@@ -99,10 +107,23 @@ describe("buffer de botones", () => {
   });
 
   it("congelado (hitstop) no envejece el buffer", () => {
-    const s = readyMatch();
+    const s = busy();
     run(s, 1, LP);
     s.fighters[0].hitstop = 10;
     run(s, 10, LP);
     expect(s.fighters[0].buf[0]).toBe(0);
+  });
+
+  it("un botón pulsado durante la recuperación sale en cuanto se puede actuar", () => {
+    const s = readyMatch();
+    s.fighters[0].state = "hitstun";
+    s.fighters[0].stun = 3;
+    run(s, 1, LP); // stun 3→2, LP queda en el buffer
+    run(s, 2, 0); // 2→1→0
+    expect(s.fighters[0].state).toBe("hitstun");
+    run(s, 1, 0); // recupera y el jab sale este mismo frame
+    expect(s.fighters[0].state).toBe("attack");
+    expect(s.fighters[0].move).toBe("st_lp");
+    expect(s.fighters[0].mf).toBe(1);
   });
 });

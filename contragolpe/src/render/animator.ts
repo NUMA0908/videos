@@ -2,6 +2,7 @@ import { getChar, getMove } from "../data/characters";
 import type { MoveData } from "../data/types";
 import { TUNING } from "../data/tuning";
 import type { FighterState } from "../sim/types";
+import "./movePoses";
 import { getPose } from "./poses";
 import { lerpPose, type Pose } from "./skeleton";
 

@@ -88,3 +88,79 @@ Decisiones clave:
 
 Cajas (pushbox amarilla, hurtbox azul, hitbox roja, proyectil rosa), origen de cada personaje, estado, frame,
 velocidades, buffer, ventana de parry e historial de inputs. F3 muestra FPS y ticks por segundo.
+
+## 7. Combate base
+
+### Cajas
+- **Hurtbox** (azul): dónde te pueden golpear. Hay una por postura (de pie, agachado, en el aire) y los
+  ataques añaden la de la extremidad extendida durante el golpe y parte de la recuperación: fallar un golpe
+  fuerte deja la pierna/brazo expuesto (*whiff punish*).
+- **Hitbox** (roja): dónde golpea el ataque, por rango de frames. Cada golpe de un movimiento conecta una vez.
+- **Pushbox** (amarilla): solo evita que los cuerpos se solapen.
+- Un test de QA comprueba que la mano/pie de cada pose de impacto cae dentro de su hitbox (lo que se ve es lo que pega).
+
+### Guardia
+| Tipo | Se bloquea | Ejemplos |
+|---|---|---|
+| **Alto** (overhead) | solo de pie | todos los ataques en salto |
+| **Medio** | de pie o agachado | la mayoría de normales de pie |
+| **Bajo** | solo agachado | patada rastrera, barrida |
+
+- Bloquear = sostener la dirección contraria **al lado del que viene el golpe** (no hacia donde miras): por eso
+  los cross-up obligan a cambiar de dirección.
+- Solo se bloquea en neutral (quieto, caminando, agachado) o encadenando bloqueos (blockstun). En el aire no.
+- Durante el blockstun se puede cambiar entre guardia alta y baja.
+- El jab de pie de Rayo es "alto" de altura (no de guardia): pasa por encima de un rival agachado. Agacharse
+  es una defensa real contra el jab, a cambio de perder ante los ataques en salto.
+
+### Golpe, counter hit y derribo
+- **Counter hit**: golpear a un rival en el startup o frames activos de su ataque, o recuperándose de un parry
+  fallido. +20 % de daño, +3 frames de hitstun (ligeros) o +6 (fuertes), +2 de hitstop y aviso "COUNTER".
+  En un intercambio (ambos se golpean el mismo frame) no hay counter hit.
+- **Derribo**: barridas, anti-aéreos y cualquier golpe recibido en el aire. El derribado queda en el suelo
+  32 frames y se levanta en 14, ambos invulnerables (no hay golpes al suelo). Un golpe ligero en el aire no
+  derriba: el rival cae de pie (8 frames de recuperación).
+- **Juggles**: un rival que cae tras un golpe aéreo solo puede volver a ser golpeado por movimientos marcados
+  como `juggle` y como mucho 2 veces.
+
+### Empuje y esquina
+- Cada golpe empuja al defensor (`pushback`, repartido en 8 frames con frenado). Si el defensor no tiene sitio
+  (pared), el resto del empuje lo absorbe el atacante: en la esquina no se puede encadenar golpes eternamente.
+
+### Combos (anti-infinitos)
+- **Escalado de daño** por número de golpe: 100, 100, 85, 75, 65, 55, 45, 35, 30 % (mínimo 30 %).
+- **Decaimiento de hitstun**: a partir del 4.º golpe, −1 frame por golpe (hasta −6). Junto con el empuje,
+  ningún enlace se puede repetir indefinidamente (hay un test que machaca jab 600 frames).
+
+### Rondas
+- 99 segundos, al mejor de 3. Gana la ronda quien deje al otro sin vida; si se acaba el tiempo, quien tenga
+  más vida en proporción. Empate (doble KO o misma vida) = ronda para ambos; si los dos llegan a 2, empate.
+- Intro de ronda (110 frames, nadie se mueve) → pelea → KO (170 frames: el KO'd sale despedido, el ganador posa)
+  → siguiente ronda. Vida al máximo cada ronda; el medidor de súper se conserva (permite remontadas).
+
+## 8. Frame data completa
+
+Columnas "Bloqueo", "Hit" y "CH" = ventaja en frames si el primer frame activo conecta.
+"—" = no aplica (derriba o es un agarre). "altura" = ataques en salto: la ventaja depende de lo cerca
+del suelo que conecten (cuanto más tarde, más ventaja; un salto profundo deja combo).
+
+<!-- FRAMEDATA:START (generado con `npm run framedata`, no editar a mano) -->
+
+### RAYO — Tomás Valdez (Equilibrado, vida 1000)
+
+| Movimiento | Input | Startup | Active | Recovery | Daño | Guardia | Hitstun | Blockstun | Bloqueo | Hit | CH | Hitstop | Notas |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Jab | LP | 4 | 2 | 6 | 30 | medio | 12 | 8 | +1 | +5 | +8 | 4 | cancel: chain/special/super |
+| Patada baja al muslo | LK | 6 | 3 | 8 | 35 | medio | 14 | 10 | 0 | +4 | +7 | 4 | cancel: chain/special/super |
+| Directo | HP | 10 | 3 | 16 | 80 | medio | 20 | 14 | -4 | +2 | +8 | 9 | cancel: special/super |
+| Patada circular | HK | 12 | 4 | 20 | 95 | medio | 22 | 16 | -7 | -1 | +5 | 10 |  |
+| Jab agachado | ↓ + LP | 4 | 2 | 7 | 25 | medio | 11 | 8 | 0 | +3 | +6 | 4 | cancel: chain/special/super |
+| Patada rastrera | ↓ + LK | 5 | 2 | 8 | 25 | bajo | 13 | 9 | 0 | +4 | +7 | 4 | cancel: chain/special/super |
+| Gancho ascendente | ↓ + HP | 7 | 4 | 18 | 85 | medio | 19 | 12 | -9 | -2 | +4 | 9 | si pega a un rival en el aire, lo lanza; cancel: special/super |
+| Barrida | ↓ + HK | 9 | 3 | 22 | 90 | bajo | 20 | 14 | — | — | — | 9 | derriba |
+| Puño en salto | (aire) LP | 4 | 7 | 0 | 35 | alto | 12 | 9 | altura | altura | altura | 4 | aterrizaje 2f |
+| Rodilla cruzada | (aire) LK | 5 | 9 | 0 | 40 | alto | 14 | 10 | altura | altura | altura | 4 | aterrizaje 3f |
+| Martillo aéreo | (aire) HP | 7 | 5 | 0 | 85 | alto | 18 | 14 | altura | altura | altura | 9 | aterrizaje 4f |
+| Patada voladora | (aire) HK | 8 | 5 | 0 | 90 | alto | 18 | 14 | altura | altura | altura | 9 | aterrizaje 4f |
+
+<!-- FRAMEDATA:END -->

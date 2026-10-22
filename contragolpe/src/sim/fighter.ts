@@ -37,6 +37,17 @@ export function toNeutral(f: FighterState): void {
   f.chain = 0;
   f.crouching = false;
   f.vx = 0;
+  f.comboHits = 0;
+  f.comboDamage = 0;
+  f.juggles = 0;
+  f.airReset = false;
+  f.lastCounter = false;
+}
+
+/** Sale de un estado de castigo (hitstun, blockstun, levantarse): breve protección contra agarres. */
+export function recover(f: FighterState): void {
+  toNeutral(f);
+  f.throwProtect = TUNING.throw.protectAfterStun;
 }
 
 export function controlEnabled(s: GameState): boolean {

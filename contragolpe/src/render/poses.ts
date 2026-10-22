@@ -92,9 +92,11 @@ export function ik(spec: PoseSpec): Pose {
 }
 
 // Piernas y manos frecuentes
-const STANCE_LEGS = { fF: [30, -80] as V2, fB: [-34, -80] as V2 };
-const CROUCH_LEGS = { fF: [36, -50] as V2, fB: [-28, -50] as V2 };
-const GUARD = { hF: [42, 50] as V2, hB: [26, 58] as V2 };
+export const STANCE_LEGS = { fF: [30, -80] as V2, fB: [-34, -80] as V2 };
+export const CROUCH_LEGS = { fF: [36, -50] as V2, fB: [-28, -50] as V2 };
+/** Poses aéreas: la cadera queda a altura fija sobre el origen (sin "apoyo" en el suelo). */
+export const AIR = { ground: 0, hy: 80 };
+export const GUARD = { hF: [42, 50] as V2, hB: [26, 58] as V2 };
 
 /** Poses comunes a todos los personajes (movimiento, defensa, reacciones). */
 export const BASE_POSES: Record<string, Pose> = {
@@ -108,9 +110,9 @@ export const BASE_POSES: Record<string, Pose> = {
 
   crouch: ik({ torso: 28, head: -14, hF: [52, 38], hB: [36, 44], ...CROUCH_LEGS }),
   prejump: ik({ torso: 18, head: -8, hF: [40, 40], hB: [24, 46], fF: [30, -62], fB: [-30, -64] }),
-  jumpUp: ik({ torso: 4, head: -6, hF: [30, 66], hB: [16, 72], fF: [14, -80], fB: [-14, -86] }),
-  jumpTuck: ik({ torso: 12, head: -6, hF: [40, 42], hB: [26, 48], fF: [30, -38], fB: [6, -46] }),
-  jumpDown: ik({ torso: 6, head: -6, hF: [36, 54], hB: [20, 60], fF: [26, -70], fB: [-18, -82] }),
+  jumpUp: ik({ torso: 4, head: -6, hF: [30, 66], hB: [16, 72], fF: [14, -74], fB: [-14, -78], ...AIR }),
+  jumpTuck: ik({ torso: 12, head: -6, hF: [40, 42], hB: [26, 48], fF: [30, -38], fB: [6, -46], ...AIR }),
+  jumpDown: ik({ torso: 6, head: -6, hF: [36, 54], hB: [20, 60], fF: [26, -66], fB: [-18, -74], ...AIR }),
   land: ik({ torso: 22, head: -10, hF: [44, 40], hB: [28, 46], fF: [34, -62], fB: [-32, -62] }),
   dashF: ik({ torso: 26, head: -10, hF: [40, 30], hB: [8, 36], fF: [50, -70], fB: [-44, -66] }),
   dashB: ik({ torso: -10, head: -4, hF: [32, 56], hB: [16, 62], fF: [40, -72], fB: [-28, -84] }),
@@ -121,8 +123,8 @@ export const BASE_POSES: Record<string, Pose> = {
   hitHigh: ik({ torso: -18, head: -28, hF: [10, 34], hB: [-12, 28], fF: [36, -80], fB: [-30, -80] }),
   hitMid: ik({ torso: 28, head: 12, hF: [28, 10], hB: [18, 16], fF: [28, -82], fB: [-36, -78] }),
   hitCrouch: ik({ torso: -4, head: -20, hF: [14, 26], hB: [-6, 22], ...CROUCH_LEGS }),
-  airHit: ik({ torso: -22, head: -25, hF: [-12, 70], hB: [-30, 60], fF: [34, -66], fB: [12, -80], rot: -25 }),
-  airHit2: ik({ torso: -20, head: -20, hF: [-20, 64], hB: [-34, 52], fF: [40, -60], fB: [20, -76], rot: -70 }),
+  airHit: ik({ torso: -22, head: -25, hF: [-12, 70], hB: [-30, 60], fF: [34, -66], fB: [12, -76], rot: -25, ...AIR }),
+  airHit2: ik({ torso: -20, head: -20, hF: [-20, 64], hB: [-34, 52], fF: [40, -60], fB: [20, -76], rot: -70, ...AIR }),
   lying: ik({ torso: 0, head: -8, hF: [-8, 10], hB: [-14, 14], fF: [6, -88], fB: [-6, -88], rot: -92 }),
   wakeup: ik({ torso: 40, head: -10, hF: [40, -10], hB: [30, -6], fF: [34, -44], fB: [-26, -46] }),
 
@@ -132,7 +134,7 @@ export const BASE_POSES: Record<string, Pose> = {
 
   parry: ik({ torso: 6, head: -8, hF: [56, 62], hB: [18, 48], fF: [36, -80], fB: [-32, -80], open: 1 }),
   parryLow: ik({ torso: 26, head: -10, hF: [60, 12], hB: [34, 40], ...CROUCH_LEGS, open: 1 }),
-  parryAir: ik({ torso: 8, head: -8, hF: [56, 58], hB: [20, 46], fF: [30, -46], fB: [4, -54], open: 1 }),
+  parryAir: ik({ torso: 8, head: -8, hF: [56, 58], hB: [20, 46], fF: [30, -46], fB: [4, -54], open: 1, ...AIR }),
   parryFail: ik({ torso: 32, head: 18, hF: [46, 18], hB: [-22, 30], fF: [42, -76], fB: [-36, -82] }),
 
   throwGrab: ik({ torso: 16, head: -6, hF: [60, 50], hB: [52, 56], fF: [34, -80], fB: [-38, -78], open: 1 }),
