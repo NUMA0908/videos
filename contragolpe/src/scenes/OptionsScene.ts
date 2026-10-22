@@ -5,6 +5,7 @@ import { TUNING, type ParryDifficulty } from "../data/tuning";
 import { ACTION_LABEL, ACTIONS, DEFAULT_KEYS, DEFAULT_PAD, keyName, padName, type Action } from "../input/bindings";
 import { VIEW_W } from "../render/view";
 import { drawBackdrop, drawFooter, drawMenu, drawPanel, drawText, drawTitle, UI, type MenuItem } from "../ui/ui";
+import { PadSettingsScene } from "./PadSettingsScene";
 import type { Scene } from "./Scene";
 
 interface Opt extends MenuItem {
@@ -78,6 +79,11 @@ export class OptionsScene implements Scene {
       },
       { label: "Pausar al perder el foco", value: s.pauseOnBlur ? "Sí" : "No", change: () => (s.pauseOnBlur = !s.pauseOnBlur) },
       { label: "Confirmar al salir en partida", value: s.confirmQuit ? "Sí" : "No", change: () => (s.confirmQuit = !s.confirmQuit), hint: "App de escritorio: pregunta antes de cerrar la ventana en mitad de un combate." },
+      {
+        label: "Mando: sensibilidad y calibración",
+        act: () => this.app.setScene(new PadSettingsScene(this.app, () => this.app.setScene(this))),
+        hint: "Zona muerta e histéresis del stick, diagonales y umbral de los gatillos, con vista en vivo.",
+      },
       { label: "Controles del Jugador 1", act: () => this.openControls(0) },
       { label: "Controles del Jugador 2", act: () => this.openControls(1) },
       {
@@ -86,6 +92,8 @@ export class OptionsScene implements Scene {
           const d = defaultSettings();
           Object.assign(s, d);
           this.app.input.keys = s.keys;
+          this.app.input.tuning = s.padTuning;
+          this.app.resize();
           this.app.input.pads = s.pads;
           this.app.audio.setVolumes(s.sfxVolume, s.musicVolume);
         },

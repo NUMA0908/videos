@@ -55,6 +55,8 @@ export class App {
     this.ctx = ctx;
     this.settings = initial ?? loadSettings();
     this.input = new InputManager(this.settings.keys, this.settings.pads);
+    // Misma referencia: lo que se ajuste en Opciones se aplica al instante.
+    this.input.tuning = this.settings.padTuning;
     this.input.attach(window);
     this.loop = new FixedLoop(
       () => this.tick(),

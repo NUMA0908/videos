@@ -43,7 +43,10 @@ Decisiones clave:
 ## 3. Entrada
 
 - Bitmask por jugador y frame: ↑ ↓ ← →, LP, HP, LK, HK, Parry y SP (especial simple).
-- **SOCD**: izquierda+derecha = neutral; arriba+abajo = neutral.
+- **SOCD de los dispositivos** (teclado y mando por igual, `src/input/socd.ts`): izquierda+derecha = neutral;
+  arriba+abajo = **arriba**. La simulación conserva su propia limpieza (arriba+abajo = neutral) como red de
+  seguridad para fuentes que no pasan por los dispositivos (IA, grabaciones); a ella nunca le llega arriba+abajo
+  de un jugador, así que no se cambió ninguna regla de la simulación (ver §17).
 - **Historial circular** de 64 frames por jugador dentro del estado.
 - **Buffer de 6 frames** (`TUNING.inputBuffer`): cada botón recuerda su última pulsación; si el personaje
   aún no puede actuar, la acción sale en cuanto pueda. Los frames congelados no envejecen el buffer.
@@ -400,6 +403,37 @@ App de escritorio:
 - [x] Instaladores: Windows NSIS + portable, Linux AppImage, macOS dmg (CI); construido y ejecutado en local: Linux.
 - [x] Arranque < 3 s, 60 FPS estables sin tirones (medido), modo bajo consumo, smoke test en CI.
 - [ ] Firma de código y actualizaciones automáticas: preparadas pero sin certificados ni servidor (README).
+
+## 17. Mando (gamepad)
+
+### Un solo camino de entrada
+Teclado y mando producen **la misma máscara de bits** por tick y pasan por el mismo código
+(`InputManager.sample`: acciones → bits → SOCD). El mando solo genera inputs: la simulación, el buffer y los
+motion inputs no saben de dónde vienen. Hay un test que lo demuestra: el cuarto de círculo + LP con teclado,
+cruceta y stick produce la misma secuencia de bitmasks y el mismo estado final de la simulación (mismo hash).
+
+### Lectura (fase 1)
+- **Gamepad API por sondeo**, una vez por tick, justo antes de que la escena muestree la entrada
+  (`App.tick → input.poll() → scene.update()`): la lectura más reciente posible para ese tick. Los eventos
+  `gamepadconnected/disconnected` no se usan para jugar.
+- `src/input/gamepad.ts` (sin DOM, testeable con mandos simulados): `PadReader` guarda por mando los botones
+  de este tick y del anterior (pulsaciones nuevas), los ejes y la dirección; reutiliza sus arrays (sin basura).
+- **Mapeo `standard`** (Xbox, DualShock/DualSense, Switch Pro y la mayoría de genéricos): cruceta = botones
+  12–15, stick izquierdo = ejes 0/1, gatillos = botones 6/7 analógicos.
+- **Cruceta y stick a la vez**: sus direcciones se suman y el SOCD final resuelve contradicciones.
+- **Stick → 8 direcciones** (`stickDirection`):
+  - zona muerta **radial** (0,45): una diagonal suave cuenta igual que una cardinal;
+  - **histéresis de radio**: activa a 0,45 y suelta por debajo de 0,32 (sin parpadeo en el borde);
+  - **diagonales generosas**: cada diagonal ocupa 56° (las cardinales 34°), así el ↘ del cuarto de círculo
+    sale sin apuntar; hay un test con un arco descuidado (radio 0,7–0,8, empezando detrás de ↓) que lanza la Onda;
+  - **histéresis de sector**: hay que pasarse 6° de la frontera para cambiar de dirección.
+- **Gatillos analógicos → digitales** con umbral configurable (0,45) y 0,08 de histéresis (Chrome marca
+  `pressed` con cualquier presión mínima; se ignora y se usa el valor).
+- **Asignación provisional**: el primer mando conectado es J1 y el segundo J2 (la pantalla "presiona un botón
+  para unirte" llega en la fase 3).
+- **Configuración**: valores de fábrica en `src/input/padTuning.ts`; el jugador los ajusta en
+  Opciones → "Mando: sensibilidad y calibración" (con vista en vivo del stick, la zona muerta, el radio de
+  soltar, las fronteras de sector y los gatillos) y se guardan en `settings.padTuning` (validados al cargar).
 
 ## 18. App de escritorio (Electron)
 

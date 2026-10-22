@@ -1,5 +1,6 @@
 import type { ParryDifficulty } from "../data/tuning";
 import { ACTIONS, DEFAULT_KEYS, DEFAULT_PAD, type KeyBindings, type PadBindings } from "../input/bindings";
+import { DEFAULT_PAD_TUNING, sanitizePadTuning, type PadTuning } from "../input/padTuning";
 import { desktop } from "./desktop";
 
 export type CpuLevel = 0 | 1 | 2;
@@ -22,6 +23,8 @@ export interface Settings {
   confirmQuit: boolean;
   /** Bajo consumo: menos partículas, sin brillos caros y lienzo a 1× (portátiles, equipos modestos). */
   lowPower: boolean;
+  /** Zona muerta, histéresis, diagonales y gatillos del mando (ver `input/padTuning.ts`). */
+  padTuning: PadTuning;
   keys: [KeyBindings, KeyBindings];
   pads: [PadBindings, PadBindings];
 }
@@ -42,6 +45,7 @@ export function defaultSettings(): Settings {
     pauseOnBlur: true,
     confirmQuit: true,
     lowPower: false,
+    padTuning: { ...DEFAULT_PAD_TUNING },
     keys: structuredClone(DEFAULT_KEYS),
     pads: [structuredClone(DEFAULT_PAD), structuredClone(DEFAULT_PAD)],
   };
@@ -63,7 +67,7 @@ export function parseSettings(raw: unknown): Settings {
   const r = raw as Record<string, unknown>;
   const out = { ...base } as Record<string, unknown>;
   for (const key of Object.keys(base) as (keyof Settings)[]) {
-    if (key === "keys" || key === "pads") continue;
+    if (key === "keys" || key === "pads" || key === "padTuning") continue;
     const v = r[key];
     if (typeof v === typeof base[key]) out[key] = v;
   }
@@ -72,6 +76,7 @@ export function parseSettings(raw: unknown): Settings {
   s.sfxVolume = Math.max(0, Math.min(1, s.sfxVolume));
   if (!["easy", "normal", "hardcore"].includes(s.parry)) s.parry = base.parry;
   if (![0, 1, 2].includes(s.cpuLevel)) s.cpuLevel = base.cpuLevel;
+  s.padTuning = sanitizePadTuning(r.padTuning);
   const keys = r.keys;
   if (Array.isArray(keys) && keys.length === 2 && keys.every((k) => bindingsOk<string>(k, (x) => typeof x === "string"))) {
     s.keys = keys as [KeyBindings, KeyBindings];

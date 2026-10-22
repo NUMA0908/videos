@@ -8,6 +8,9 @@ import {
   type KeyBindings,
   type PadBindings,
 } from "./bindings";
+import { PadReader, type GamepadLike } from "./gamepad";
+import { DEFAULT_PAD_TUNING, type PadTuning } from "./padTuning";
+import { resolveSOCD } from "./socd";
 
 export interface MenuInput {
   up: boolean;
@@ -21,29 +24,45 @@ export interface MenuInput {
   who: -1 | 0 | 1;
 }
 
-const STICK_DEADZONE = 0.5;
+/** Cuántos mandos a la vez se leen (el Gamepad API expone hasta 4 en casi todos los navegadores). */
+export const MAX_PADS = 4;
 const MENU_REPEAT_DELAY = 18;
 const MENU_REPEAT_RATE = 5;
 
+type PadSource = () => ArrayLike<GamepadLike | null>;
+
+const browserPads: PadSource = () =>
+  typeof navigator !== "undefined" && navigator.getGamepads ? (navigator.getGamepads() as ArrayLike<GamepadLike | null>) : [];
+
 /**
- * Traduce teclado y gamepads a bitmasks por jugador (para la simulación) y a eventos de menú.
- * Se muestrea una vez por tick de simulación.
+ * Traduce teclado y mandos a bitmasks por jugador (para la simulación) y a eventos de menú.
+ * Un solo camino para todos los dispositivos: acciones → máscara → SOCD. El teclado y el mando nunca
+ * tienen reglas propias; la simulación (buffer, motion inputs) ve exactamente lo mismo venga de donde venga.
+ * Los mandos se sondean una vez por tick (`poll`), justo antes de que la escena muestree la entrada.
  */
 export class InputManager {
   keys: [KeyBindings, KeyBindings];
   pads: [PadBindings, PadBindings];
+  tuning: PadTuning = { ...DEFAULT_PAD_TUNING };
+  /** Estado de cada mando por índice del Gamepad API. */
+  readonly readers: PadReader[] = Array.from({ length: MAX_PADS }, () => new PadReader());
+  /** Qué mando (índice) usa cada jugador; null = ninguno (solo teclado). */
+  readonly playerPad: [number | null, number | null] = [null, null];
+  /** Asignación automática: el primer mando conectado es J1 y el segundo J2. */
+  autoAssign = true;
   private down = new Set<string>();
   private pressed = new Set<string>();
   /** Teclas pulsadas desde el último tick (aunque ya se hayan soltado): ningún toque rápido se pierde. */
   private tapped = new Set<string>();
   /** Captura de la próxima tecla/botón (pantalla de remapeo). */
   private capture: ((code: string | null, pad: number | null, player: 0 | 1 | null) => void) | null = null;
-  private padPrev: boolean[][] = [[], [], [], []];
-  private padNow: boolean[][] = [[], [], [], []];
-  private padAxes: number[][] = [[], [], [], []];
   private menuHold: Record<string, number> = {};
 
-  constructor(keys: [KeyBindings, KeyBindings], pads: [PadBindings, PadBindings]) {
+  constructor(
+    keys: [KeyBindings, KeyBindings],
+    pads: [PadBindings, PadBindings],
+    private readonly padSource: PadSource = browserPads,
+  ) {
     this.keys = keys;
     this.pads = pads;
   }
@@ -76,24 +95,23 @@ export class InputManager {
     return false;
   }
 
-  /** Lee el estado de los gamepads. Llamar una vez por tick antes de `sample`. */
+  /** Lee el estado de los mandos. Una vez por tick, justo antes de muestrear (`sample`). */
   poll(): void {
-    const pads = typeof navigator !== "undefined" && navigator.getGamepads ? navigator.getGamepads() : [];
-    for (let i = 0; i < 4; i++) {
-      this.padPrev[i] = this.padNow[i];
-      const p = pads[i];
-      this.padNow[i] = p ? p.buttons.map((b) => b.pressed || b.value > 0.5) : [];
-      this.padAxes[i] = p ? Array.from(p.axes) : [];
+    const pads = this.padSource();
+    for (let i = 0; i < MAX_PADS; i++) {
+      const gp = i < pads.length ? pads[i] : null;
+      this.readers[i].update(gp && gp.connected ? gp : null, this.tuning);
     }
+    if (this.autoAssign) this.assignPads();
     if (this.capture) {
-      for (let i = 0; i < 2; i++) {
-        const now = this.padNow[i];
-        const prev = this.padPrev[i];
-        for (let b = 0; b < now.length; b++) {
-          if (now[b] && !prev[b]) {
+      for (const p of [0, 1] as const) {
+        const r = this.reader(p);
+        if (!r) continue;
+        for (let b = 0; b < r.buttons.length; b++) {
+          if (r.pressed(b)) {
             const cb = this.capture;
             this.capture = null;
-            cb(null, b, i as 0 | 1);
+            cb(null, b, p);
             return;
           }
         }
@@ -101,20 +119,38 @@ export class InputManager {
     }
   }
 
+  /** Asignación automática: suelta los mandos desconectados y da los libres a los jugadores sin mando. */
+  private assignPads(): void {
+    for (const p of [0, 1] as const) {
+      const i = this.playerPad[p];
+      if (i !== null && !this.readers[i].connected) this.playerPad[p] = null;
+    }
+    for (let i = 0; i < MAX_PADS; i++) {
+      if (!this.readers[i].connected || this.playerPad.includes(i)) continue;
+      const free = this.playerPad.indexOf(null);
+      if (free < 0) break;
+      this.playerPad[free] = i;
+    }
+  }
+
+  /** Mando del jugador (si tiene uno conectado). */
+  reader(player: 0 | 1): PadReader | null {
+    const i = this.playerPad[player];
+    const r = i === null ? null : this.readers[i];
+    return r && r.connected ? r : null;
+  }
+
   anyPadPressed(): boolean {
-    for (let i = 0; i < 4; i++) for (let b = 0; b < (this.padNow[i]?.length ?? 0); b++) if (this.padPressed(i, b)) return true;
+    for (const r of this.readers) if (r.connected && r.anyPressed()) return true;
     return false;
   }
 
   padConnected(i: number): boolean {
-    return this.padNow[i]?.length > 0;
+    return this.readers[i]?.connected ?? false;
   }
 
-  private padDown(i: number, b: number): boolean {
-    return !!this.padNow[i]?.[b];
-  }
-  private padPressed(i: number, b: number): boolean {
-    return !!this.padNow[i]?.[b] && !this.padPrev[i]?.[b];
+  private padPressed(player: 0 | 1, b: number): boolean {
+    return this.reader(player)?.pressed(b) ?? false;
   }
 
   keyDown(code: string): boolean {
@@ -126,24 +162,29 @@ export class InputManager {
     return this.pressed.has(code);
   }
 
-  /** Bitmask del jugador para este tick. */
-  sample(player: 0 | 1): number {
+  /**
+   * Bitmask del jugador para este tick: teclado + mando (botones, cruceta y stick), con SOCD.
+   * `withStick = false` ignora el stick (menús donde el stick se usa para otra cosa, como la calibración).
+   */
+  sample(player: 0 | 1, withStick = true): number {
     let mask = 0;
     const kb = this.keys[player];
-    const pb = this.pads[player];
-    // Bucles simples (sin cierres): se llama dos veces por tick.
+    // Bucles simples (sin cierres): se llama varias veces por tick.
     for (const a of ACTIONS) {
       for (const c of kb[a]) if (this.down.has(c) || this.tapped.has(c)) mask |= ACTION_BIT[a];
-      for (const b of pb[a]) if (this.padDown(player, b)) mask |= ACTION_BIT[a];
     }
-    for (const m of PAD_MACROS) if (this.padDown(player, m.button)) mask |= m.mask;
-    const ax = this.padAxes[player];
-    if (ax && ax.length >= 2) {
-      if (ax[0] < -STICK_DEADZONE) mask |= Btn.LEFT;
-      if (ax[0] > STICK_DEADZONE) mask |= Btn.RIGHT;
-      if (ax[1] < -STICK_DEADZONE) mask |= Btn.UP;
-      if (ax[1] > STICK_DEADZONE) mask |= Btn.DOWN;
+    const r = this.reader(player);
+    if (r) mask |= this.padMask(r, this.pads[player], withStick);
+    return resolveSOCD(mask);
+  }
+
+  /** Máscara de un mando con unas asignaciones (botones remapeables, macros, cruceta y stick). */
+  padMask(r: PadReader, pb: PadBindings, withStick = true): number {
+    let mask = withStick ? r.dir : r.dpadDir;
+    for (const a of ACTIONS) {
+      for (const b of pb[a]) if (r.down(b)) mask |= ACTION_BIT[a];
     }
+    for (const m of PAD_MACROS) if (r.down(m.button)) mask |= m.mask;
     return mask;
   }
 
@@ -158,9 +199,9 @@ export class InputManager {
   }
 
   /** Navegación de menús con cualquier dispositivo (con auto-repetición al mantener). */
-  menu(): MenuInput {
-    const m0 = this.sample(0);
-    const m1 = this.sample(1);
+  menu(withStick = true): MenuInput {
+    const m0 = this.sample(0, withStick);
+    const m1 = this.sample(1, withStick);
     const any = m0 | m1;
     const pk = (codes: string[]) => codes.some((c) => this.pressed.has(c));
     const padAny = (b: number) => this.padPressed(0, b) || this.padPressed(1, b);
