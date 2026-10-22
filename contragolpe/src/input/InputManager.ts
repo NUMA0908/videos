@@ -32,6 +32,17 @@ export const MAX_PADS = 4;
 const MENU_REPEAT_DELAY = 18;
 const MENU_REPEAT_RATE = 5;
 
+/** Hueco de mando de un jugador. `lost` = su mando se desconectó y se le espera (mismo `id`). */
+export interface PadSlot {
+  index: number | null;
+  id: string | null;
+  lost: boolean;
+}
+
+export type PadEvent = { type: "joined" | "lost" | "reconnected" | "released"; player: 0 | 1; id: string };
+
+const NO_MENU: MenuInput = Object.freeze({ up: false, down: false, left: false, right: false, confirm: false, back: false, pause: false, who: -1 });
+
 /** Perfiles de botones del mando por tipo (`xbox`, `playstation`, `switch`, `generic`, `raw:<id>`). */
 export type PadProfiles = Record<string, PadBindings>;
 
@@ -55,10 +66,25 @@ export class InputManager {
   tuning: PadTuning = { ...DEFAULT_PAD_TUNING };
   /** Estado de cada mando por índice del Gamepad API. */
   readonly readers: PadReader[] = Array.from({ length: MAX_PADS }, () => new PadReader());
-  /** Qué mando (índice) usa cada jugador; null = ninguno (solo teclado). */
-  readonly playerPad: [number | null, number | null] = [null, null];
-  /** Asignación automática: el primer mando conectado es J1 y el segundo J2. */
-  autoAssign = true;
+  /** Mando de cada jugador. */
+  readonly slots: [PadSlot, PadSlot] = [
+    { index: null, id: null, lost: false },
+    { index: null, id: null, lost: false },
+  ];
+  /**
+   * "press": un mando libre que pulsa un botón se une solo (primero J1, luego J2; un hueco que espera a su
+   * mando desconectado tiene prioridad). "manual": la pantalla de unión decide quién es quién.
+   */
+  joinMode: "press" | "manual" = "press";
+  /** Altas y bajas de este tick (las vacía `endTick`). */
+  readonly events: PadEvent[] = [];
+  /** Qué juego de teclas usa cada jugador (la pantalla de unión puede dar el de J1 a J2). */
+  readonly keySet: [0 | 1, 0 | 1] = [0, 1];
+  /** Evita dobles disparos: tras `consume()` los menús no ven nada más en este tick. */
+  private consumed = false;
+  private menuCache: MenuInput | null = null;
+  private menuCacheStick = true;
+  private menuForCache: [MenuInput | null, MenuInput | null] = [null, null];
   private down = new Set<string>();
   private pressed = new Set<string>();
   /** Teclas pulsadas desde el último tick (aunque ya se hayan soltado): ningún toque rápido se pierde. */
@@ -108,26 +134,102 @@ export class InputManager {
       const gp = i < pads.length ? pads[i] : null;
       this.readers[i].update(gp && gp.connected ? gp : null, this.tuning);
     }
-    if (this.autoAssign) this.assignPads();
+    this.updateSlots();
   }
 
-  /** Asignación automática: suelta los mandos desconectados y da los libres a los jugadores sin mando. */
-  private assignPads(): void {
+  /** Bajas (el hueco queda esperando), reconexiones (mismo id) y uniones al pulsar. */
+  private updateSlots(): void {
     for (const p of [0, 1] as const) {
-      const i = this.playerPad[p];
-      if (i !== null && !this.readers[i].connected) this.playerPad[p] = null;
+      const sl = this.slots[p];
+      if (sl.index === null) continue;
+      const r = this.readers[sl.index];
+      if (!r.connected || r.id !== sl.id) {
+        this.events.push({ type: "lost", player: p, id: sl.id ?? "" });
+        sl.index = null;
+        sl.lost = true;
+      }
     }
+    for (const p of [0, 1] as const) {
+      const sl = this.slots[p];
+      if (!sl.lost) continue;
+      for (let i = 0; i < MAX_PADS; i++) {
+        if (this.readers[i].connected && this.readers[i].id === sl.id && !this.isAssigned(i)) {
+          sl.index = i;
+          sl.lost = false;
+          this.events.push({ type: "reconnected", player: p, id: sl.id ?? "" });
+          break;
+        }
+      }
+    }
+    if (this.joinMode !== "press") return;
     for (let i = 0; i < MAX_PADS; i++) {
-      if (!this.readers[i].connected || this.playerPad.includes(i)) continue;
-      const free = this.playerPad.indexOf(null);
-      if (free < 0) break;
-      this.playerPad[free] = i;
+      const r = this.readers[i];
+      if (!r.connected || this.isAssigned(i) || !r.anyPressed()) continue;
+      const target = this.slots[0].lost ? 0 : this.slots[1].lost ? 1 : this.slots[0].index === null ? 0 : this.slots[1].index === null ? 1 : -1;
+      if (target < 0) break;
+      this.assign(target as 0 | 1, i);
     }
+  }
+
+  isAssigned(index: number): boolean {
+    return this.slots[0].index === index || this.slots[1].index === index;
+  }
+
+  /** Da el mando `index` al jugador. */
+  assign(player: 0 | 1, index: number): void {
+    const sl = this.slots[player];
+    sl.index = index;
+    sl.id = this.readers[index].id;
+    sl.lost = false;
+    this.events.push({ type: "joined", player, id: sl.id });
+  }
+
+  /** El jugador deja de tener mando (vuelve a solo teclado). */
+  unassign(player: 0 | 1): void {
+    const sl = this.slots[player];
+    sl.index = null;
+    sl.id = null;
+    sl.lost = false;
+  }
+
+  /** Mando perdido → el jugador sigue con teclado ("presiona una tecla para continuar con teclado"). */
+  releaseToKeyboard(player: 0 | 1): void {
+    const id = this.slots[player].id ?? "";
+    this.unassign(player);
+    this.events.push({ type: "released", player, id });
+  }
+
+  isLost(player: 0 | 1): boolean {
+    return this.slots[player].lost;
+  }
+
+  /** Índices de mando de cada jugador (null = sin mando conectado). */
+  get playerPad(): [number | null, number | null] {
+    return [this.slots[0].index, this.slots[1].index];
+  }
+
+  /** Mando conectado sin jugador que acaba de pulsar `button` (pantalla de unión). */
+  unassignedPressed(button: number): number | null {
+    for (let i = 0; i < MAX_PADS; i++) {
+      const r = this.readers[i];
+      if (r.connected && !this.isAssigned(i) && (r.kind === "raw" ? r.anyPressed() : r.pressed(button))) return i;
+    }
+    return null;
+  }
+
+  /** Alguna tecla pulsada en este tick. */
+  anyKeyPressed(): boolean {
+    return this.pressed.size > 0;
+  }
+
+  /** Lo que queda de este tick no dispara más acciones de menú (cambio de pantalla, pausa abierta…). */
+  consume(): void {
+    this.consumed = true;
   }
 
   /** Mando del jugador (si tiene uno conectado). */
   reader(player: 0 | 1): PadReader | null {
-    const i = this.playerPad[player];
+    const i = this.slots[player].index;
     const r = i === null ? null : this.readers[i];
     return r && r.connected ? r : null;
   }
@@ -161,7 +263,7 @@ export class InputManager {
    */
   sample(player: 0 | 1, withStick = true): number {
     let mask = 0;
-    const kb = this.keys[player];
+    const kb = this.keys[this.keySet[player]];
     // Bucles simples (sin cierres): se llama varias veces por tick.
     for (const a of ACTIONS) {
       for (const c of kb[a]) if (this.down.has(c) || this.tapped.has(c)) mask |= ACTION_BIT[a];
@@ -217,8 +319,19 @@ export class InputManager {
     return n === 1 || (n > MENU_REPEAT_DELAY && (n - MENU_REPEAT_DELAY) % MENU_REPEAT_RATE === 0);
   }
 
-  /** Navegación de menús con cualquier dispositivo (con auto-repetición al mantener). */
+  /**
+   * Navegación de menús con cualquier dispositivo (con auto-repetición al mantener). Se calcula una vez por
+   * tick: llamarla varias veces devuelve lo mismo (la auto-repetición no corre el doble) y tras `consume()`
+   * no devuelve nada, así una pulsación nunca dispara dos acciones.
+   */
   menu(withStick = true): MenuInput {
+    if (this.consumed) return NO_MENU;
+    if (this.menuCache && this.menuCacheStick === withStick) return this.menuCache;
+    this.menuCacheStick = withStick;
+    return (this.menuCache = this.computeMenu(withStick));
+  }
+
+  private computeMenu(withStick: boolean): MenuInput {
     const any = this.sample(0, withStick) | this.sample(1, withStick);
     const pk = (codes: string[]) => codes.some((c) => this.pressed.has(c));
     const confirm0 = pk(["Enter", "Space", ...this.keys[0].LP]) || this.padMenuButton(0, "confirm");
@@ -237,17 +350,23 @@ export class InputManager {
 
   /** Navegación de menú de un jugador concreto (selección de personaje a dos). */
   menuFor(player: 0 | 1): MenuInput {
+    if (this.consumed) return NO_MENU;
+    return (this.menuForCache[player] ??= this.computeMenuFor(player));
+  }
+
+  private computeMenuFor(player: 0 | 1): MenuInput {
     const m = this.sample(player);
     const pk = (codes: string[]) => codes.some((c) => this.pressed.has(c));
-    const extraConfirm = player === 0 ? ["Enter", "Space"] : ["NumpadEnter"];
-    const confirm = pk([...extraConfirm, ...this.keys[player].LP]) || this.padMenuButton(player, "confirm");
+    const set = this.keySet[player];
+    const extraConfirm = set === 0 ? ["Enter", "Space"] : ["NumpadEnter"];
+    const confirm = pk([...extraConfirm, ...this.keys[set].LP]) || this.padMenuButton(player, "confirm");
     return {
       up: this.repeatIn(this.menuHoldP, `${player}u`, !!(m & Btn.UP)),
       down: this.repeatIn(this.menuHoldP, `${player}d`, !!(m & Btn.DOWN)),
       left: this.repeatIn(this.menuHoldP, `${player}l`, !!(m & Btn.LEFT)),
       right: this.repeatIn(this.menuHoldP, `${player}r`, !!(m & Btn.RIGHT)),
       confirm,
-      back: pk([...(player === 0 ? ["Escape", "Backspace"] : []), ...this.keys[player].HP]) || this.padMenuButton(player, "back"),
+      back: pk([...(set === 0 ? ["Escape", "Backspace"] : []), ...this.keys[set].HP]) || this.padMenuButton(player, "back"),
       pause: false,
       who: confirm ? player : -1,
     };
@@ -266,5 +385,9 @@ export class InputManager {
   endTick(): void {
     this.pressed.clear();
     this.tapped.clear();
+    this.events.length = 0;
+    this.consumed = false;
+    this.menuCache = null;
+    this.menuForCache[0] = this.menuForCache[1] = null;
   }
 }

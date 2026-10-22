@@ -22,10 +22,11 @@ export class GalleryScene implements Scene {
   }
 
   update(): void {
-    const i = this.app.input;
-    if (i.keyPressed("ArrowRight")) this.page++;
-    if (i.keyPressed("ArrowLeft")) this.page = Math.max(0, this.page - 1);
-    if (i.keyPressed("ArrowDown")) this.charIdx = (this.charIdx + 1) % CHARACTERS.length;
+    const m = this.app.input.menu();
+    if (m.right) this.page++;
+    if (m.left) this.page = Math.max(0, this.page - 1);
+    if (m.down) this.charIdx = (this.charIdx + 1) % CHARACTERS.length;
+    if (m.up) this.charIdx = (this.charIdx + CHARACTERS.length - 1) % CHARACTERS.length;
   }
 
   render(ctx: CanvasRenderingContext2D): void {

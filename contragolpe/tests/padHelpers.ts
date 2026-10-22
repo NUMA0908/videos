@@ -60,11 +60,24 @@ export class FakeKeyboard {
   }
 }
 
-/** InputManager con mandos simulados y teclado falso. */
-export function makeInput(pads: (FakePad | null)[] = [], profiles: PadProfiles = {}): { input: InputManager; kb: FakeKeyboard; pads: (FakePad | null)[] } {
+/**
+ * InputManager con mandos simulados y teclado falso. Por defecto los mandos ya conectados quedan unidos
+ * (J1 el primero, J2 el segundo), como tras la pantalla de unión; `autoJoin: false` para probar la unión.
+ */
+export function makeInput(
+  pads: (FakePad | null)[] = [],
+  profiles: PadProfiles = {},
+  opts: { autoJoin?: boolean } = {},
+): { input: InputManager; kb: FakeKeyboard; pads: (FakePad | null)[] } {
   const input = new InputManager(structuredClone(DEFAULT_KEYS), profiles, () => pads);
   const kb = new FakeKeyboard();
   input.attach(kb as unknown as Window);
+  if (opts.autoJoin !== false) {
+    input.poll();
+    let p = 0;
+    for (let i = 0; i < pads.length && p < 2; i++) if (pads[i]?.connected) input.assign(p++ as 0 | 1, i);
+    input.endTick();
+  }
   return { input, kb, pads };
 }
 

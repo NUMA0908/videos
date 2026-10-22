@@ -464,6 +464,32 @@ cruceta y stick produce la misma secuencia de bitmasks y el mismo estado final d
   omite a los 8 s o con Retroceso; Esc cancela sin tocar el perfil anterior.
 - Un mando no estándar sin configurar no inventa botones: solo se mueve con los ejes 0/1 (stick).
 
+### Jugadores, conexión y menús (fase 3)
+- **Huecos de jugador** (`InputManager.slots`): cada jugador tiene como mucho un mando, identificado por su
+  índice y su `id`. Fuera de la pantalla de unión, **un mando libre que pulsa un botón se une solo** (primero J1,
+  luego J2): el primero que pulsa es J1, no el primero que se conectó. El teclado siempre funciona para los dos.
+- **Pantalla "Presiona un botón para unirte"** (Versus de 2 jugadores): A/✕ une un mando, B/○ lo saca;
+  el teclado se une con Enter/J (teclas de J1) o Num Enter/Num 4 (teclas de J2). Mezclas: dos mandos,
+  teclado + mando o los dos juegos de teclas. **Quien entra con un juego de teclas lo conserva** aunque quede
+  como J2 (`keySet`), así un jugador de teclado no tiene que cambiar de manos si el mando llegó antes. Al volver
+  al título cada jugador recupera su juego de teclas.
+- **Desconexión**: el hueco no se libera; queda "esperando" a ese mando (`lost`). En plena partida (combate y
+  trial) se **pausa** con el aviso "Mando desconectado (Jn): reconéctalo o presiona una tecla para continuar
+  con teclado". Si vuelve un mando con el mismo `id` (aunque el navegador le dé otro índice) **recupera su
+  jugador** sin pasar por la unión; si se pulsa una tecla, ese jugador sigue con teclado; si pulsa otro mando,
+  ocupa el hueco. La pausa sigue abierta tras el aviso: se continúa a propósito. Los eventos
+  `gamepadconnected/disconnected` solo se registran en el log; los cambios se detectan sondeando.
+- **Menús con mando**: todas las pantallas (incluidas la pausa del trial, que antes solo salía con Esc, y la
+  grabación del muñeco en entrenamiento, antes solo F4/F5) se manejan con cruceta/stick, A/✕ y B/○; Start abre
+  la pausa. Foco: la fila elegida resaltada con flecha y fondo, igual en todas.
+- **Sin dobles disparos**: el menú se calcula **una vez por tick** (varias llamadas devuelven lo mismo y la
+  auto-repetición no corre el doble) y `consume()` anula el resto del tick: lo llaman el cambio de escena (la
+  pulsación que cambió de pantalla no actúa en la nueva) y la apertura de una pausa (Enter es "pausa" y
+  "aceptar": abre la pausa sin elegir "Continuar"). Mantener A pulsado avanza una sola pantalla.
+- Tests con las escenas reales y una App falsa: recorrido completo título → combate → pausa → salir solo con
+  mando, B en cada pantalla, A mantenido, la pausa con Enter, desconexión/reconexión/teclado en plena partida
+  y la pantalla de unión (dos mandos y teclado + mando con su juego de teclas).
+
 ## 18. App de escritorio (Electron)
 
 ### Decisión: Electron + electron-builder

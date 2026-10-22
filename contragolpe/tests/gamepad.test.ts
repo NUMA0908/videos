@@ -143,30 +143,70 @@ describe("mapeo estándar, remapeo y gatillos", () => {
 });
 
 describe("conexión y desconexión", () => {
-  it("el primer mando es J1, el segundo J2; desconectar libera y reconectar vuelve a asignar", () => {
-    const a = new FakePad(0);
-    const b = new FakePad(1);
-    const list: (FakePad | null)[] = [null, null];
-    const { input } = makeInput(list);
+  it("el primer mando que pulsa es J1 y el segundo J2 (no el orden de conexión)", () => {
+    const a = new FakePad(0, "Pad A");
+    const b = new FakePad(1, "Pad B");
+    const list: (FakePad | null)[] = [a, b];
+    const { input } = makeInput(list, {}, { autoJoin: false });
     tick(input);
-    expect(input.playerPad).toEqual([null, null]);
-    list[1] = b; // el primero en llegar ocupa J1 aunque su índice sea 1
+    expect(input.playerPad).toEqual([null, null]); // conectados pero nadie ha pulsado
+    b.press(PadButton.A);
     tick(input);
     expect(input.playerPad).toEqual([1, null]);
-    list[0] = a;
+    a.press(PadButton.A);
     tick(input);
     expect(input.playerPad).toEqual([1, 0]);
-    a.press(PadButton.X);
-    b.press(PadButton.Y);
+    a.releaseAll().press(PadButton.X);
+    b.releaseAll().press(PadButton.Y);
     expect(tick(input)).toEqual([HP, LP]);
-    list[1] = null; // se desconecta el de J1
-    expect(tick(input)).toEqual([0, LP]);
-    expect(input.playerPad).toEqual([null, 0]);
-    expect(input.padConnected(1)).toBe(false);
-    list[1] = b;
+  });
+
+  it("desconectar deja el hueco esperando; reconectar el mismo mando lo recupera sin volver a unirse", () => {
+    const a = new FakePad(0, "Pad A");
+    const b = new FakePad(1, "Pad B");
+    const list: (FakePad | null)[] = [a, b];
+    const { input } = makeInput(list, {}, { autoJoin: false });
+    a.press(PadButton.A);
     tick(input);
-    expect(input.playerPad).toEqual([1, 0]);
-    expect(input.padConnected(1)).toBe(true);
+    b.press(PadButton.A);
+    tick(input);
+    expect(input.playerPad).toEqual([0, 1]);
+    list[0] = null; // J1 se desconecta
+    input.poll();
+    expect(input.events).toEqual([{ type: "lost", player: 0, id: "Pad A" }]);
+    expect(input.isLost(0)).toBe(true);
+    expect(input.sample(0)).toBe(0); // sin botones pegados
+    input.endTick();
+    // Vuelve en otro índice (como hace el navegador a veces): mismo id → mismo jugador.
+    list[0] = null;
+    list[2] = new FakePad(2, "Pad A").press(PadButton.X);
+    input.poll();
+    expect(input.events[0]).toEqual({ type: "reconnected", player: 0, id: "Pad A" });
+    expect(input.playerPad).toEqual([2, 1]);
+    expect(input.sample(0)).toBe(LP);
+  });
+
+  it("con J1 esperando, otro mando que pulsa ocupa su hueco; o J1 sigue con teclado", () => {
+    const a = new FakePad(0, "Pad A");
+    const list: (FakePad | null)[] = [a, null];
+    const { input, kb } = makeInput(list, {}, { autoJoin: false });
+    a.press(PadButton.A);
+    tick(input);
+    list[0] = null;
+    tick(input);
+    expect(input.isLost(0)).toBe(true);
+    list[1] = new FakePad(1, "Pad C").press(PadButton.A);
+    tick(input);
+    expect(input.playerPad).toEqual([1, null]);
+    expect(input.isLost(0)).toBe(false);
+    // Otro caso: se suelta al teclado.
+    list[1] = null;
+    tick(input);
+    expect(input.isLost(0)).toBe(true);
+    input.releaseToKeyboard(0);
+    kb.down("KeyD");
+    expect(tick(input)[0]).toBe(RIGHT);
+    expect(input.isLost(0)).toBe(false);
   });
 
   it("un mando desconectado no deja botones pegados", () => {

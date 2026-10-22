@@ -8,7 +8,7 @@ import type { Scene } from "./Scene";
 
 const ITEMS: (MenuItem & { go: (app: App) => void })[] = [
   { label: "Arcade", hint: "Tres combates seguidos contra la CPU.", go: (a) => nav.select(a, "arcade") },
-  { label: "Versus (2 jugadores)", hint: "J1 contra J2 en el mismo teclado o con mandos.", go: (a) => nav.select(a, "versus") },
+  { label: "Versus (2 jugadores)", hint: "J1 contra J2 en el mismo teclado o con mandos.", go: (a) => nav.join(a) },
   { label: "Versus contra CPU", hint: "Un combate libre eligiendo personajes y escenario.", go: (a) => nav.select(a, "vscpu") },
   { label: "Entrenamiento", hint: "Frame data, cajas, historial de inputs, muñeco configurable y grabación.", go: (a) => nav.select(a, "training") },
   { label: "Trial de parry", hint: "Aprende el parry paso a paso con lecciones guiadas.", go: (a) => nav.select(a, "trial") },

@@ -18,6 +18,7 @@ import { drawCharacter, drawMenu, drawPanel, drawText, drawTitle, UI, type MenuI
 import { FightScene } from "./FightScene";
 import { drawMoveList } from "./MoveListScene";
 import { nav } from "./nav";
+import { PadLostWatcher } from "./padLost";
 import type { Scene } from "./Scene";
 
 export interface ArcadeRun {
@@ -80,6 +81,7 @@ export class MatchScene implements Scene {
   readonly dummy: Dummy | null = null;
   private splash = 110;
   private pauseOpen = false;
+  private padLost: PadLostWatcher;
   private pauseSel = 0;
   private moveListFor: string | null = null;
   private resultSel = 0;
@@ -95,6 +97,7 @@ export class MatchScene implements Scene {
     readonly app: App,
     readonly setup: MatchSetup,
   ) {
+    this.padLost = new PadLostWatcher(app);
     const s = app.settings;
     const training = setup.mode === "training";
     this.fight = new FightScene(
@@ -196,6 +199,12 @@ export class MatchScene implements Scene {
   update(): void {
     const input = this.app.input;
     const s = this.fight.state;
+    // Mando desconectado en plena partida: pausa con aviso (en la intro o los resultados basta el aviso).
+    if (this.padLost.update(this.setup.p2 === "human" ? [0, 1] : [0]) && s.round.phase !== "over" && !this.pauseOpen) {
+      this.pauseOpen = true;
+      this.pauseSel = 0;
+      this.fight.paused = true;
+    }
     if (this.splash > 0) {
       this.splash--;
       if (input.menu().confirm && this.splash < 80) this.splash = 0;
@@ -224,24 +233,32 @@ export class MatchScene implements Scene {
       this.pauseSel = 0;
       this.fight.paused = true;
       this.app.audio.play("select");
+      input.consume(); // el mismo botón no puede elegir ya una opción de la pausa
       return;
     }
 
     if (this.setup.mode === "training") {
       if (input.keyPressed("KeyR")) this.resetPositions(false);
       if (input.keyPressed("KeyT")) this.resetPositions(true);
-      if (input.keyPressed("F4") && this.dummy) {
-        this.recording = !this.recording;
-        if (this.recording) this.dummy.recording = { frames: [] };
-        else if (this.dummy.recording.frames.length) this.dummy.mode = "playback";
-        this.dummy.restartPlayback();
-      }
-      if (input.keyPressed("F5") && this.dummy) {
-        this.dummy.mode = this.dummy.mode === "playback" ? "stand" : "playback";
-        this.dummy.restartPlayback();
-      }
+      if (input.keyPressed("F4")) this.toggleRecording();
+      if (input.keyPressed("F5")) this.togglePlayback();
     }
     this.fight.update();
+  }
+
+  /** Entrenamiento: grabar lo que hace el jugador para que el muñeco lo repita (F4 o desde la pausa). */
+  private toggleRecording(): void {
+    if (!this.dummy) return;
+    this.recording = !this.recording;
+    if (this.recording) this.dummy.recording = { frames: [] };
+    else if (this.dummy.recording.frames.length) this.dummy.mode = "playback";
+    this.dummy.restartPlayback();
+  }
+
+  private togglePlayback(): void {
+    if (!this.dummy) return;
+    this.dummy.mode = this.dummy.mode === "playback" ? "stand" : "playback";
+    this.dummy.restartPlayback();
   }
 
   private pauseItems(): Item[] {
@@ -272,7 +289,14 @@ export class MatchScene implements Scene {
       items.push({ label: "Medidor infinito", value: this.infiniteMeter ? "Sí" : "No", change: () => (this.infiniteMeter = !this.infiniteMeter) });
       items.push({ label: "Frame data en pantalla", value: this.showFrameData ? "Sí" : "No", change: () => (this.showFrameData = !this.showFrameData) });
       items.push({ label: "Cajas (hitboxes)", value: this.fight.debug ? "Sí" : "No", change: () => (this.fight.debug = !this.fight.debug), hint: "También con F1 en cualquier momento." });
-      items.push({ label: "Reiniciar posición (R / T esquina)", act: () => (this.resetPositions(false), this.closePause()) });
+      items.push({ label: "Reiniciar posición (R)", act: () => (this.resetPositions(false), this.closePause()) });
+      items.push({ label: "Reiniciar en la esquina (T)", act: () => (this.resetPositions(true), this.closePause()) });
+      items.push({
+        label: this.recording ? "Terminar grabación (F4)" : "Grabar al muñeco (F4)",
+        act: () => (this.toggleRecording(), this.closePause()),
+        hint: "Controlas al muñeco y se graba lo que haces; al terminar, el muñeco lo repite.",
+      });
+      items.push({ label: "Reproducir grabación (F5)", value: this.dummy.mode === "playback" ? "Sí" : "No", change: () => this.togglePlayback() });
     } else {
       items.push({ label: "Reiniciar combate", act: () => (this.fight.restart((Date.now() & 0xffff) | 1), this.cpu?.reset(), this.closePause()) });
     }
@@ -422,6 +446,7 @@ export class MatchScene implements Scene {
       drawMenu(ctx, items, this.pauseSel, VIEW_W / 2 - 200, 170, 400, this.app.time, 36, rows);
     }
     if (this.moveListFor) drawMoveList(ctx, this.moveListFor, this.setup.mode === "training");
+    this.padLost.draw(ctx);
     if (s.round.phase === "over" && s.round.t > 100) this.drawResults(ctx);
   }
 

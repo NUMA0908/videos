@@ -122,7 +122,8 @@ async function main() {
 
   // "Salir del juego" (última opción del menú principal; solo existe en escritorio).
   await press("ArrowUp");
-  await press("Enter");
+  // La app puede cerrarse antes de que Playwright suelte la tecla: eso es justo lo esperado.
+  await win.keyboard.press("Enter").catch(() => {});
   const exited = await Promise.race([closed.then(() => true), sleep(10_000).then(() => false)]);
   if (!exited) {
     await app.close();

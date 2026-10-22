@@ -1,7 +1,8 @@
 import { AudioEngine } from "../audio/Audio";
-import { InputManager } from "../input/InputManager";
+import { InputManager, type PadEvent } from "../input/InputManager";
+import { PAD_KIND_LABEL, detectPadKind } from "../input/padKind";
 import { fitCanvas } from "../render/renderer";
-import { VIEW_H, VIEW_W } from "../render/view";
+import { FONT, VIEW_H, VIEW_W } from "../render/view";
 import type { Scene } from "../scenes/Scene";
 import { desktop } from "./desktop";
 import { FixedLoop } from "./loop";
@@ -88,12 +89,42 @@ export class App {
     window.addEventListener("blur", () => this.onFocus(false));
     window.addEventListener("focus", () => this.onFocus(true));
     desktop?.onFocusChange?.((focused) => this.onFocus(focused));
+    // Altas y bajas de mandos: solo para el registro (el juego las detecta sondeando en cada tick).
+    window.addEventListener("gamepadconnected", (e) => desktop?.log?.("info", `Mando conectado: ${(e as GamepadEvent).gamepad.id}`));
+    window.addEventListener("gamepaddisconnected", (e) => desktop?.log?.("info", `Mando desconectado: ${(e as GamepadEvent).gamepad.id}`));
   }
 
   setScene(scene: Scene): void {
     this.scene?.exit?.();
     this.scene = scene;
+    // La pulsación que cambió de pantalla no puede disparar también algo en la nueva.
+    this.input.consume();
     scene.enter?.();
+  }
+
+  private isGameplay(): boolean {
+    const k = this.scene?.kind;
+    return k === "match" || k === "fight" || k === "trial";
+  }
+
+  /** Aviso breve encima de todo (altas y bajas de mandos). */
+  private toastText = "";
+  private toastT = 0;
+
+  toast(text: string, ticks = 150): void {
+    this.toastText = text;
+    this.toastT = ticks;
+  }
+
+  private onPadEvent(e: PadEvent): void {
+    const who = `J${e.player + 1}`;
+    const kind = PAD_KIND_LABEL[detectPadKind(e.id, "standard")];
+    const playing = this.isGameplay();
+    if (e.type === "joined") this.toast(`${who}: mando ${kind} listo`);
+    // En partida la escena ya muestra el aviso grande de desconexión.
+    else if (e.type === "lost") (playing ? desktop?.log?.("warn", `Mando de ${who} desconectado en partida`) : this.toast(`Mando de ${who} desconectado`, 240));
+    else if (e.type === "reconnected") this.toast(`Mando de ${who} reconectado`);
+    else this.toast(`${who} sigue con teclado`);
   }
 
   saveSettings(): void {
@@ -109,12 +140,14 @@ export class App {
   private tickInner(): void {
     this.time += 1 / 60;
     this.input.poll();
-    const gameplay = this.scene?.kind === "match" || this.scene?.kind === "fight" || this.scene?.kind === "trial";
+    const gameplay = this.isGameplay();
     if (++this.mouseIdle === 120 && gameplay) this.canvas.style.cursor = "none";
     if (!gameplay && this.canvas.style.cursor === "none") this.canvas.style.cursor = "default";
     if (this.input.anyPadPressed()) this.audio.unlock();
     if (this.input.keyPressed("F3")) this.showFps = !this.showFps;
     this.scene?.update();
+    for (const e of this.input.events) this.onPadEvent(e);
+    if (this.toastT > 0) this.toastT--;
     this.input.endTick();
   }
 
@@ -137,6 +170,21 @@ export class App {
     ctx.fillStyle = "#07070c";
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
     this.scene?.render(ctx);
+    if (this.toastT > 0) {
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, this.toastT / 20);
+      ctx.font = `bold 15px ${FONT}`;
+      const w = ctx.measureText(this.toastText).width + 32;
+      // En partida, bajo el marcador; en los menús, sobre la barra de ayuda inferior.
+      const y = this.isGameplay() ? 150 : VIEW_H - 30;
+      ctx.fillStyle = "rgba(8,10,28,0.92)";
+      ctx.fillRect(VIEW_W / 2 - w / 2, y, w, 30);
+      ctx.fillStyle = "#7fe3ff";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(this.toastText, VIEW_W / 2, y + 15);
+      ctx.restore();
+    }
     if (this.showFps) {
       ctx.fillStyle = "rgba(0,0,0,0.6)";
       ctx.fillRect(VIEW_W - 120, VIEW_H - 22, 116, 18);

@@ -6,8 +6,14 @@ import { Btn } from "../sim/input";
 import { Rng } from "../sim/rng";
 import type { GameState } from "../sim/types";
 import { FONT, FONT_IMPACT, VIEW_H, VIEW_W } from "../render/view";
+import { drawMenu, drawPanel, drawTitle, type MenuItem } from "../ui/ui";
 import { FightScene } from "./FightScene";
+import { PadLostWatcher } from "./padLost";
 import type { Scene } from "./Scene";
+
+interface PauseItem extends MenuItem {
+  act: () => void;
+}
 
 type Phase = "intro" | "waiting" | "running" | "done" | "complete";
 
@@ -32,12 +38,16 @@ export class TrialScene implements Scene {
   private hitAt = -1;
   private attemptStart = 0;
   private prevParry = false;
+  private pauseOpen = false;
+  private pauseSel = 0;
+  private padLost: PadLostWatcher;
 
   constructor(
     readonly app: App,
     readonly charId: string,
     readonly onExit: () => void,
   ) {
+    this.padLost = new PadLostWatcher(app);
     this.fight = this.makeFight();
   }
 
@@ -192,10 +202,43 @@ export class TrialScene implements Scene {
     this.timer = 0;
   }
 
+  private pauseItems(): PauseItem[] {
+    const n = TRIAL_LESSONS.length;
+    return [
+      { label: "Continuar", act: () => this.setPause(false) },
+      { label: "Repetir la lección (R)", act: () => (this.startLesson(this.lesson), this.setPause(false)) },
+      { label: "Siguiente lección (Tab)", act: () => (this.startLesson((this.lesson + 1) % n), this.setPause(false)) },
+      { label: "Lección anterior", act: () => (this.startLesson((this.lesson + n - 1) % n), this.setPause(false)) },
+      { label: "Salir del trial", act: () => this.onExit() },
+    ];
+  }
+
+  private setPause(open: boolean): void {
+    this.pauseOpen = open;
+    this.pauseSel = 0;
+    this.fight.paused = open;
+    this.app.input.consume();
+  }
+
   update(): void {
     const input = this.app.input;
-    if (input.keyPressed("Escape")) {
-      this.onExit();
+    if (this.padLost.update([0]) && !this.pauseOpen) this.setPause(true);
+    if (this.pauseOpen) {
+      const m = input.menu();
+      const items = this.pauseItems();
+      if (m.up) this.pauseSel = (this.pauseSel + items.length - 1) % items.length;
+      if (m.down) this.pauseSel = (this.pauseSel + 1) % items.length;
+      if (m.up || m.down) this.app.audio.play("select");
+      if (m.confirm) {
+        this.app.audio.play("confirm");
+        items[this.pauseSel].act();
+      } else if (m.back) this.setPause(false);
+      return;
+    }
+    // Start/Options o Esc: pausa (desde ahí se sale del trial).
+    if (input.menu().pause) {
+      this.app.audio.play("select");
+      this.setPause(true);
       return;
     }
     if (input.keyPressed("KeyR")) this.startLesson(this.lesson);
@@ -292,10 +335,19 @@ export class TrialScene implements Scene {
     ctx.fillRect(0, VIEW_H - 62, VIEW_W, 20);
     ctx.fillStyle = "#cfe8ff";
     ctx.fillText(
-      `PARRY: L · ↓ + PARRY = parry bajo · Ventana: ${this.window()} frames (${this.fight.state.config.parry}) · R reiniciar · Tab siguiente · Esc salir · Intentos: ${this.attempts}`,
+      `PARRY: L / RB · ↓ + PARRY = parry bajo · Ventana: ${this.window()} frames (${this.fight.state.config.parry}) · Esc/Start pausa · Intentos: ${this.attempts}`,
       VIEW_W / 2,
       VIEW_H - 52,
     );
     ctx.restore();
+    if (this.pauseOpen) {
+      ctx.fillStyle = "rgba(4,6,16,0.7)";
+      ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+      drawTitle(ctx, "PAUSA", 150, 42);
+      const items = this.pauseItems();
+      drawPanel(ctx, VIEW_W / 2 - 230, 180, 460, items.length * 36 + 24, 0.9);
+      drawMenu(ctx, items, this.pauseSel, VIEW_W / 2 - 200, 210, 400, this.app.time, 36);
+    }
+    this.padLost.draw(ctx);
   }
 }
