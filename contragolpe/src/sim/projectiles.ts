@@ -2,7 +2,7 @@ import { getProjectile } from "../data/characters";
 import type { ProjectileData, ProjectileSpawn } from "../data/types";
 import { TUNING } from "../data/tuning";
 import { anyOverlap, hurtboxes, overlaps, toWorld, type WorldBox } from "./boxes";
-import { applyBlock, applyHit, blockCheck, isCounterState, strikeCanTouch, type Strike } from "./combat";
+import { applyBlock, applyHit, blockCheck, isCounterState, strikeCanTouch, tryArmor, type Strike } from "./combat";
 import { px } from "./fixed";
 import type { FighterState, GameState, ProjectileState, Side } from "./types";
 
@@ -120,7 +120,7 @@ export function resolveProjectiles(s: GameState, parry: (s: GameState, def: Figh
     } else {
       const block = blockCheck(s, def, st);
       if (block.ok) applyBlock(s, owner, def, st, block.crouch);
-      else applyHit(s, owner, def, st, isCounterState(def));
+      else if (!tryArmor(s, owner, def, st)) applyHit(s, owner, def, st, isCounterState(def));
       p.hitstop = def.hitstop;
     }
     if (p.hits <= 0) p.dead = true;

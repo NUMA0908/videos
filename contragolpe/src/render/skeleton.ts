@@ -210,14 +210,15 @@ export function drawFighterBody(ctx: CanvasRenderingContext2D, j: Joints, look: 
   capsule(ctx, j.elB, j.haB, lw * 0.95, col(pal.skin, backK), outline, ow);
   hand(ctx, j.elB, j.haB, lw * 0.62, j.open, col(pal.gloves, backK), outline, ow);
 
-  // Pierna trasera
+  // Pierna trasera (con pantalón corto, la espinilla se ve)
+  const shorts = look.legwear === "shorts";
   capsule(ctx, j.hiB, j.knB, lw * 1.45, col(pal.pantsShade), outline, ow);
-  capsule(ctx, j.knB, j.ftB, lw * 1.2, col(pal.pantsShade), outline, ow);
+  capsule(ctx, j.knB, j.ftB, lw * (shorts ? 1.05 : 1.2), col(shorts ? pal.skin : pal.pantsShade, shorts ? backK : 1), outline, ow);
   foot(ctx, j.ftB, j.shinB, 15 * s, lw * 0.8, col(pal.shoes, backK), outline);
 
   // Pierna delantera
   capsule(ctx, j.hiF, j.knF, lw * 1.5, col(pal.pants), outline, ow);
-  capsule(ctx, j.knF, j.ftF, lw * 1.25, col(pal.pants), outline, ow);
+  capsule(ctx, j.knF, j.ftF, lw * (shorts ? 1.1 : 1.25), col(shorts ? pal.skin : pal.pants), outline, ow);
   foot(ctx, j.ftF, j.shinF, 16 * s, lw * 0.85, col(pal.shoes), outline);
 
   // Torso (trapecio redondeado de la cintura a los hombros)

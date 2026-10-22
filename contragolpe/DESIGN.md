@@ -280,7 +280,71 @@ y usan su propio azar. Regla de oro: **el fuerte tiene que destacar sobre el lig
 - Opciones para **desactivar la sacudida** y **los destellos** (el flash blanco del golpe se sustituye por un
   contorno tenue; sin destellos de pantalla).
 
-## 11. Frame data completa
+## 11. Personajes (identidades)
+
+| | RAYO (equilibrado) | CHISPA (rushdown) | MURALLA (grappler) |
+|---|---|---|---|
+| Vida | 1000 | 880 | 1150 |
+| Caminar adelante / atrás | 3,2 / 2,6 | 4,2 / 3,3 | 2,2 / 1,9 |
+| Dash | 18 f, 112 px | 15 f, 128 px | 22 f, 92 px |
+| Salto | 44 f en el aire | ~38 f (rápido) | ~47 f (pesado) |
+| Jab | 4 f | **3 f** | 5 f (más alcance y daño) |
+| Proyectil (↓↘→+P) | Onda Rayo: cruza la pantalla | Chispazo: se apaga a ~250 px | Temblor: onda baja y lenta (se bloquea agachado) |
+| Anti-aéreo (→↓↘+P) | Puño Ascendente (invencible) | Gancho Relámpago (invencible, más bajo) | Atrapa Cielos: **agarre** aéreo invencible a golpes |
+| Otros especiales | Embestida (↓↙←+K, atraviesa proyectiles) | Ráfaga (↓↘→+K), Rodada (↓↙←+K, invencible a golpes, agarrable) | **Abrazo de Oso** (→↘↓↙←+P, agarre de comando que no se escapa), Embestida de Toro (↓↘→+K, armadura) |
+| Overhead | Martillo (→+HP) | Salto de gata (→+HK) | — (tiene el agarre de comando) |
+| Súper | Tormenta Final: orbe de 5 golpes | Mil Chispas: ráfaga invencible de 6 golpes | Gran Terremoto: onda sísmica de 4 golpes |
+| Plan de juego | Controlar la distancia y castigar saltos | Pegarse, mezclar alto/bajo/agarre | Aguantar, acercarse con armadura y agarrar |
+| Debilidad | Nada destaca: hay que jugar bien | Poca vida, poco alcance, se la puede mantener lejos | Lento, salto pesado, le cuesta acercarse |
+
+- **Armadura** (Muralla: Embestida y patada fuerte): durante ciertos frames encaja 1 golpe sin interrumpirse,
+  recibiendo la mitad del daño. Los agarres la rompen siempre (y Chispa/Rayo pueden agarrarle).
+- **Agarres de comando**: no se pueden escapar (sin tech), mucho daño, pero fallar deja 34–38 frames de
+  recuperación. Es la amenaza que obliga a no quedarse bloqueando contra Muralla.
+- **Golpes múltiples con remate**: cada golpe de un movimiento puede definir su propio daño/hitstun/derribo
+  (la súper de Chispa remata con un uppercut de 110 que lanza).
+- Cada personaje tiene su propia guardia y forma de caminar (poses base por personaje) y paletas alternativas
+  para los espejos.
+
+## 12. IA (CPU) y muñeco de entrenamiento
+
+- La CPU **no lee inputs**: observa el estado del juego con un **retraso de reacción** (26/17/11 frames en
+  Fácil/Normal/Difícil) y ejecuta especiales con motion inputs reales, frame a frame.
+- Decide por capas: escapar de agarres (adivinando, la ventana es menor que cualquier reacción), cancelar en
+  combo si su golpe conectó, anti-aéreo si ve un salto que se acerca, defensa (bloqueo con la altura que ve,
+  parry de lectura contra proyectiles y saltos), castigo de recuperaciones y juego neutro según distancia y
+  "costumbres" del personaje (Rayo zonea, Chispa se pega, Muralla busca el agarre).
+- Se equivoca a propósito: probabilidad de despiste, de bloquear con la altura equivocada y de no reaccionar.
+  Entre decisiones "piensa" unos frames (más en Fácil).
+- Test: Difícil gana a Fácil ≥ 70 % de los partidos; los partidos CPU vs CPU terminan y son deterministas.
+- **Muñeco**: quieto, agachado, bloquea todo (ve el golpe al instante; medios de pie, bajos agachado), parry
+  perfecto (pulsa en el frame justo, incluido cada golpe de un multi-hit), salta, CPU de nivel elegible y
+  reproducir una grabación (F4 graba controlando al muñeco, F5 reproduce en bucle; la grabación es relativa a
+  hacia dónde mira, así funciona en cualquier lado).
+
+## 13. Modos y menús
+
+- **Arcade**: 3 combates (los otros dos personajes y un espejo final un nivel más difícil) en los tres
+  escenarios; si pierdes puedes repetir; final con la frase del campeón.
+- **Versus** (2 jugadores, cada uno elige con sus controles), **Versus contra CPU** (combate libre).
+- **Entrenamiento**: vida infinita, sin reloj, frame data del último ataque (teórica y **medida** en vivo tras
+  cada contacto), historial de inputs, cajas (F1), reiniciar posición (R centro / T esquina), muñeco
+  configurable, medidor infinito y grabación/reproducción.
+- **Trial de parry** con cualquier personaje.
+- **Opciones**: volumen de música y efectos, dificultad del parry, inputs simplificados, dificultad de la CPU,
+  sacudida, destellos, controles de J1 y J2 (teclado y mando; al asignar una tecla se quita de otras acciones
+  para evitar conflictos) y restaurar valores. Se guardan en `localStorage` (si no hay, duran la sesión).
+- **Pausa** (Esc/Enter/P/Start), **lista de movimientos** de cada personaje y **pantalla de victoria**.
+
+## 14. Escenarios
+
+| Escenario | Ambiente | Detalles animados | Música |
+|---|---|---|---|
+| Muelle al Atardecer | puerto al final de la tarde | barcos que se mecen, olas, gaviotas, grúa, ventanas que se encienden | aire de merengue (güira) |
+| Azotea Neón | ciudad a medianoche | letreros de neón que parpadean, estrellas, ventiladores, antena, lluvia fina, charcos con reflejos | synthwave |
+| Plaza Colonial | casco antiguo en fiesta | casas de colores, banderines, palmeras que se mecen, público que salta, nubes | guitarra arpegiada |
+
+## 15. Frame data completa
 
 Columnas "Bloqueo", "Hit" y "CH" = ventaja en frames si el primer frame activo conecta.
 "—" = no aplica (derriba o es un agarre). "altura" = ataques en salto: la ventaja depende de lo cerca
@@ -319,5 +383,71 @@ del suelo que conecten (cuanto más tarde, más ventaja; un salto profundo deja 
 | fb_l | 4.2 px/f | 1 | 70 | 12 | 18 | 16 | 260f |
 | fb_h | 7.5 px/f | 1 | 75 | 12 | 18 | 16 | 180f |
 | super | 5.5 px/f | 5 | 62 | 18 | 24 | 18 | 220f |
+
+### CHISPA — Luna Reyes (Rushdown, vida 880)
+
+| Movimiento | Input | Startup | Active | Recovery | Daño | Guardia | Hitstun | Blockstun | Bloqueo | Hit | CH | Hitstop | Notas |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Jab relámpago | LP | 3 | 2 | 6 | 25 | medio | 12 | 8 | +1 | +5 | +8 | 4 | cancel: chain/special/super |
+| Patada al tobillo | LK | 5 | 2 | 8 | 30 | medio | 13 | 9 | 0 | +4 | +7 | 4 | cancel: chain/special/super |
+| Codazo giratorio | HP | 8 | 3 | 14 | 65 | medio | 18 | 13 | -3 | +2 | +8 | 8 | cancel: special/super |
+| Patada de látigo | HK | 10 | 3 | 18 | 80 | medio | 20 | 14 | -6 | 0 | +6 | 9 |  |
+| Salto de gata (overhead) | → + HK | 16 | 3 | 14 | 60 | alto | 16 | 11 | -5 | 0 | +6 | 8 |  |
+| Jab bajo | ↓ + LP | 3 | 2 | 7 | 20 | medio | 11 | 8 | 0 | +3 | +6 | 4 | cancel: chain/special/super |
+| Barrido corto | ↓ + LK | 4 | 2 | 8 | 20 | bajo | 12 | 9 | 0 | +3 | +6 | 4 | cancel: chain/special/super |
+| Codo al cielo | ↓ + HP | 6 | 3 | 15 | 70 | medio | 18 | 11 | -6 | +1 | +7 | 8 | si pega a un rival en el aire, lo lanza; cancel: special/super |
+| Deslizamiento | ↓ + HK | 8 | 6 | 18 | 75 | bajo | 18 | 12 | — | — | — | 8 | derriba |
+| Puño en salto | (aire) LP | 3 | 6 | 0 | 30 | alto | 11 | 8 | altura | altura | altura | 4 | aterrizaje 2f |
+| Rodilla cruzada | (aire) LK | 4 | 9 | 0 | 35 | alto | 13 | 9 | altura | altura | altura | 4 | aterrizaje 2f |
+| Garra en picado | (aire) HP | 6 | 5 | 0 | 70 | alto | 17 | 13 | altura | altura | altura | 8 | aterrizaje 3f |
+| Patada en picado | (aire) HK | 7 | 6 | 0 | 75 | alto | 17 | 13 | altura | altura | altura | 8 | aterrizaje 3f |
+| Voltereta | LP + LK (cerca) | 5 | 2 | 22 | 100 | agarre | 0 | 0 | — | — | — | 10 | agarre 80px |
+| Chispazo (corto) | ↓↘→ + LP | 10 | 1 | 22 | 0 | medio | 0 | 0 | -22 | -22 | -19 | 4 | proyectil en f10 |
+| Chispazo (largo) | ↓↘→ + HP | 12 | 1 | 22 | 0 | medio | 0 | 0 | -22 | -22 | -19 | 4 | proyectil en f12 |
+| Gancho Relámpago (ligero) | →↓↘ + LP | 3 | 7 | 16 | 85 | medio | 20 | 15 | — | — | — | 9 | derriba; juggle; invencible (all) f1-3; chip 8; aterrizaje 12f |
+| Gancho Relámpago (fuerte) | →↓↘ + HP | 4 | 8 | 18 | 110 | medio | 20 | 15 | — | — | — | 10 | derriba; juggle; invencible (all) f1-6; chip 10; aterrizaje 14f |
+| Ráfaga (corta) | ↓↘→ + LK | 9 | 6 | 14 | 70 | medio | 18 | 14 | -5 | -1 | +5 | 9 | chip 8; cancel: super |
+| Ráfaga (larga) | ↓↘→ + HK | 12 | 7 | 16 | 90 | medio | 20 | 15 | — | — | — | 10 | derriba; chip 10 |
+| Rodada (corta) | ↓↙← + LK | 18 | 1 | 8 | 0 | medio | 0 | 0 | -8 | -8 | -5 | 4 | invencible (strike) f3-15 |
+| Rodada (larga) | ↓↙← + HK | 22 | 1 | 9 | 0 | medio | 0 | 0 | -9 | -9 | -6 | 4 | invencible (strike) f3-19 |
+| Mil Chispas | ↓↘→↓↘→ + P  (o HP + HK) | 6 | 22 | 30 | 45 | medio | 26 | 16 | -35 | -25 | -19 | 5 | invencible (all) f1-10; cuesta 1000 de medidor; chip 12 |
+
+| Proyectil | Velocidad | Golpes | Daño | Chip | Hitstun | Blockstun | Vida |
+|---|---|---|---|---|---|---|---|
+| fb_l | 6 px/f | 1 | 50 | 8 | 18 | 15 | 34f |
+| fb_h | 8.5 px/f | 1 | 55 | 8 | 18 | 15 | 32f |
+
+### MURALLA — Bruno Ortega (Grappler, vida 1150)
+
+| Movimiento | Input | Startup | Active | Recovery | Daño | Guardia | Hitstun | Blockstun | Bloqueo | Hit | CH | Hitstop | Notas |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Manotazo | LP | 5 | 2 | 8 | 40 | medio | 13 | 9 | 0 | +4 | +7 | 5 | cancel: chain/special/super |
+| Pisotón frontal | LK | 7 | 3 | 10 | 45 | medio | 15 | 11 | -1 | +3 | +6 | 5 | cancel: chain/special/super |
+| Palmada de oso | HP | 12 | 4 | 18 | 110 | medio | 21 | 15 | -6 | 0 | +6 | 10 | cancel: special/super |
+| Patada de mula | HK | 14 | 5 | 22 | 120 | medio | 24 | 18 | -8 | -2 | +4 | 11 | armadura 1 golpe f5-15 |
+| Puño bajo | ↓ + LP | 5 | 2 | 8 | 35 | medio | 12 | 9 | 0 | +3 | +6 | 5 | cancel: chain/special/super |
+| Patada a la espinilla | ↓ + LK | 6 | 2 | 10 | 35 | bajo | 13 | 10 | -1 | +2 | +5 | 5 | cancel: chain/special/super |
+| Cabezazo al cielo | ↓ + HP | 9 | 5 | 20 | 100 | medio | 20 | 13 | -11 | -4 | +2 | 10 | si pega a un rival en el aire, lo lanza; cancel: special/super |
+| Barrida pesada | ↓ + HK | 12 | 4 | 24 | 110 | bajo | 20 | 15 | — | — | — | 10 | derriba |
+| Codazo en salto | (aire) LP | 5 | 6 | 0 | 45 | alto | 12 | 9 | altura | altura | altura | 5 | aterrizaje 3f |
+| Rodillazo | (aire) LK | 6 | 8 | 0 | 50 | alto | 14 | 10 | altura | altura | altura | 5 | aterrizaje 3f |
+| Panzazo | (aire) HP | 8 | 6 | 0 | 105 | alto | 18 | 14 | altura | altura | altura | 11 | aterrizaje 5f |
+| Patada de tronco | (aire) HK | 9 | 5 | 0 | 105 | alto | 18 | 14 | altura | altura | altura | 11 | aterrizaje 5f |
+| Suplex | LP + LK (cerca) | 5 | 2 | 24 | 140 | agarre | 0 | 0 | — | — | — | 12 | agarre 92px |
+| Abrazo de Oso (corto) | →↘↓↙← + LP | 5 | 3 | 34 | 180 | agarre | 0 | 0 | — | — | — | 14 | agarre 96px, no se escapa |
+| Abrazo de Oso (largo) | →↘↓↙← + HP | 8 | 3 | 38 | 210 | agarre | 0 | 0 | — | — | — | 14 | agarre 118px, no se escapa |
+| Atrapa Cielos (ligero) | →↓↘ + LP | 4 | 8 | 26 | 150 | agarre | 0 | 0 | — | — | — | 12 | invencible (strike) f1-7; agarre 120px, no se escapa, aéreo; aterrizaje 14f |
+| Atrapa Cielos (fuerte) | →↓↘ + HP | 5 | 10 | 28 | 180 | agarre | 0 | 0 | — | — | — | 12 | invencible (strike) f1-10; agarre 140px, no se escapa, aéreo; aterrizaje 18f |
+| Temblor (corto) | ↓↘→ + LP | 16 | 1 | 30 | 0 | medio | 0 | 0 | -30 | -30 | -24 | 9 | proyectil en f16 |
+| Temblor (largo) | ↓↘→ + HP | 18 | 1 | 30 | 0 | medio | 0 | 0 | -30 | -30 | -24 | 9 | proyectil en f18 |
+| Embestida de Toro (corta) | ↓↘→ + LK | 14 | 6 | 18 | 90 | medio | 20 | 14 | -9 | -3 | +3 | 11 | armadura 1 golpe f1-19; chip 10; cancel: super |
+| Embestida de Toro (larga) | ↓↘→ + HK | 18 | 8 | 20 | 115 | medio | 20 | 14 | — | — | — | 12 | derriba; armadura 1 golpe f1-25; chip 12 |
+| Gran Terremoto | ↓↘→↓↘→ + P  (o HP + HK) | 14 | 1 | 36 | 0 | medio | 0 | 0 | -36 | -36 | -30 | 0 | invencible (all) f1-15; proyectil en f14; cuesta 1000 de medidor |
+
+| Proyectil | Velocidad | Golpes | Daño | Chip | Hitstun | Blockstun | Vida |
+|---|---|---|---|---|---|---|---|
+| fb_l | 3.8 px/f | 1 | 70 | 12 | 20 | 16 | 70f |
+| fb_h | 5.4 px/f | 1 | 75 | 12 | 20 | 16 | 62f |
+| super | 7 px/f | 4 | 78 | 20 | 24 | 18 | 150f |
 
 <!-- FRAMEDATA:END -->

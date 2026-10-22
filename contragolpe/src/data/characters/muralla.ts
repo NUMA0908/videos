@@ -1,0 +1,91 @@
+import type { CharacterData } from "../types";
+import { MURALLA_MOVES, MURALLA_PROJECTILES } from "../moves/muralla";
+
+/**
+ * BRUNO "MURALLA" ORTEGA — Grappler.
+ * Estibador del puerto y luchador de los domingos. Lento y enorme: aguanta mucho y, si te agarra,
+ * se lleva media barra. Le cuesta acercarse.
+ */
+export const MURALLA: CharacterData = {
+  id: "muralla",
+  name: "Bruno Ortega",
+  nickname: "MURALLA",
+  archetype: "Grappler",
+  description: "Mucha vida, golpes enormes y agarres que no se escapan. Lento: tiene que abrirse paso.",
+  quote: "Ven. Que te doy un abrazo.",
+  health: 1150,
+  walkF: 2.2,
+  walkB: 1.9,
+  dashF: { frames: 22, distance: 92 },
+  dashB: { frames: 26, distance: 80, invuln: 4 },
+  jump: { prejump: 5, vy: 15, gravity: 0.64, vxF: 3.4, vxB: -3.0, landing: 5 },
+  boxes: {
+    standHurt: [
+      { x: -32, y: 0, w: 66, h: 160 },
+      { x: -12, y: 156, w: 34, h: 38 },
+    ],
+    crouchHurt: [
+      { x: -36, y: 0, w: 74, h: 104 },
+      { x: -2, y: 98, w: 34, h: 30 },
+    ],
+    airHurt: [
+      { x: -30, y: 30, w: 62, h: 118 },
+      { x: -12, y: 144, w: 34, h: 36 },
+    ],
+    standPush: { x: -40, y: 0, w: 80, h: 160 },
+    crouchPush: { x: -42, y: 0, w: 84, h: 110 },
+    airPush: { x: -32, y: 40, w: 64, h: 110 },
+  },
+  moves: MURALLA_MOVES,
+  projectiles: MURALLA_PROJECTILES,
+  normals: {
+    stand: { LP: "st_lp", HP: "st_hp", LK: "st_lk", HK: "st_hk" },
+    crouch: { LP: "cr_lp", HP: "cr_hp", LK: "cr_lk", HK: "cr_hk" },
+    air: { LP: "j_lp", HP: "j_hp", LK: "j_lk", HK: "j_hk" },
+  },
+  specials: [
+    { move: "cmd_l", motion: "hcb", button: "LP" },
+    { move: "cmd_h", motion: "hcb", button: "HP" },
+    { move: "dp_l", motion: "dp", button: "LP" },
+    { move: "dp_h", motion: "dp", button: "HP" },
+    { move: "fb_l", motion: "qcf", button: "LP" },
+    { move: "fb_h", motion: "qcf", button: "HP" },
+    { move: "charge_l", motion: "qcf", button: "LK" },
+    { move: "charge_h", motion: "qcf", button: "HK" },
+  ],
+  super: "super",
+  throw: "throw",
+  simple: { neutral: "fb_h", forward: "charge_h", down: "dp_h", back: "cmd_l" },
+  look: {
+    scale: 1.12,
+    torso: 64,
+    upperArm: 35,
+    foreArm: 33,
+    thigh: 46,
+    shin: 44,
+    headR: 15,
+    shoulderW: 62,
+    waistW: 46,
+    limbW: 17,
+    colors: {
+      skin: "#8d5a3b",
+      hair: "#141016",
+      top: "#8a2232",
+      topShade: "#5e1622",
+      pants: "#2d2a36",
+      pantsShade: "#1f1d27",
+      accent: "#e8b23a",
+      gloves: "#efe9dc",
+      shoes: "#3a2a1c",
+      energy: "#ff8a2a",
+      energyCore: "#fff0d0",
+      outline: "#0b0b14",
+    },
+    altColors: { top: "#1f4f86", topShade: "#143558", accent: "#cfd6de", energy: "#6fd0ff", energyCore: "#eefbff" },
+    hairStyle: "bald",
+    sleeves: "none",
+    legwear: "pants",
+    extra: "beard",
+    stanceWidth: 1.25,
+  },
+};

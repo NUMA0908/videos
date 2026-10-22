@@ -83,6 +83,7 @@ export const RAYO: CharacterData = {
     altColors: { top: "#b8322a", topShade: "#83211c", accent: "#f6f6f6", energy: "#ff8d3a", energyCore: "#fff3e0" },
     hairStyle: "spiky",
     sleeves: "short",
+    legwear: "pants",
     extra: "headband",
     stanceWidth: 1,
   },

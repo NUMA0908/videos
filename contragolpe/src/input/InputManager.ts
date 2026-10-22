@@ -175,6 +175,36 @@ export class InputManager {
     };
   }
 
+  private menuHoldP: Record<string, number> = {};
+
+  private repeatP(id: string, held: boolean): boolean {
+    if (!held) {
+      this.menuHoldP[id] = 0;
+      return false;
+    }
+    const n = (this.menuHoldP[id] ?? 0) + 1;
+    this.menuHoldP[id] = n;
+    return n === 1 || (n > MENU_REPEAT_DELAY && (n - MENU_REPEAT_DELAY) % MENU_REPEAT_RATE === 0);
+  }
+
+  /** Navegación de menú de un jugador concreto (selección de personaje a dos). */
+  menuFor(player: 0 | 1): MenuInput {
+    const m = this.sample(player);
+    const pk = (codes: string[]) => codes.some((c) => this.pressed.has(c));
+    const extraConfirm = player === 0 ? ["Enter", "Space"] : ["NumpadEnter"];
+    const confirm = pk([...extraConfirm, ...this.keys[player].LP]) || this.padPressed(player, 0) || this.padPressed(player, 2);
+    return {
+      up: this.repeatP(`${player}u`, !!(m & Btn.UP)),
+      down: this.repeatP(`${player}d`, !!(m & Btn.DOWN)),
+      left: this.repeatP(`${player}l`, !!(m & Btn.LEFT)),
+      right: this.repeatP(`${player}r`, !!(m & Btn.RIGHT)),
+      confirm,
+      back: pk([...(player === 0 ? ["Escape", "Backspace"] : []), ...this.keys[player].HP]) || this.padPressed(player, 1),
+      pause: false,
+      who: confirm ? player : -1,
+    };
+  }
+
   /** Espera la próxima tecla o botón (remapeo). `null` = cancelado con Escape. */
   captureNext(cb: (code: string | null, pad: number | null, player: 0 | 1 | null) => void): void {
     this.capture = cb;

@@ -19,6 +19,12 @@ export interface TimedBoxes {
   boxes: Box[];
   /** Golpes distintos de un mismo movimiento (multi-hit). Cada `hit` conecta como mucho una vez. */
   hit?: number;
+  /** Ajustes de este golpe concreto (p. ej. el remate de una súper). */
+  damage?: number;
+  hitstun?: number;
+  hitstop?: number;
+  knockdown?: boolean;
+  launch?: { vx: number; vy: number };
 }
 
 /** alto = overhead (bloquear de pie), medio = cualquier guardia, bajo = bloquear agachado. */
@@ -203,6 +209,7 @@ export interface CharacterLook {
   altColors: Partial<CharacterLook["colors"]>;
   hairStyle: "spiky" | "ponytail" | "bald" | "short";
   sleeves: "none" | "short";
+  legwear: "pants" | "shorts";
   extra: "headband" | "scarf" | "beard" | "none";
   /** Postura (cuánto se inclina, ancho de piernas) para dar personalidad al idle. */
   stanceWidth: number;

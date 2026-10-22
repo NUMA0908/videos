@@ -34,19 +34,20 @@ export interface Strike {
   at?: { x: number; y: number };
 }
 
-export function strikeFromMove(atk: FighterState, mv: MoveData): Strike {
+export function strikeFromMove(atk: FighterState, mv: MoveData, hit = 0): Strike {
   const strength = mv.kind === "super" ? "super" : mv.strength;
+  const o = mv.hitboxes.find((tb) => (tb.hit ?? 0) === hit);
   return {
-    damage: mv.damage,
+    damage: o?.damage ?? mv.damage,
     chip: mv.chip ?? 0,
-    hitstun: mv.hitstun,
+    hitstun: o?.hitstun ?? mv.hitstun,
     blockstun: mv.blockstun,
-    hitstop: mv.hitstop,
+    hitstop: o?.hitstop ?? mv.hitstop,
     pushback: mv.pushback,
     guard: mv.guard,
     strength,
-    knockdown: !!mv.knockdown,
-    launch: mv.launch,
+    knockdown: o?.knockdown ?? !!mv.knockdown,
+    launch: o?.launch ?? mv.launch,
     juggle: !!mv.juggle,
     chHitstunBonus: mv.chHitstunBonus ?? TUNING.counterHit.hitstunBonus[mv.strength],
     meterOnHit: mv.meterOnHit,
@@ -230,6 +231,34 @@ export function applyBlock(s: GameState, atk: FighterState | null, def: FighterS
   }
 }
 
+/**
+ * Súper armadura: durante ciertos frames de un movimiento, el personaje encaja N golpes sin interrumpirse
+ * (recibe el daño, pero no el hitstun). Los agarres la rompen siempre.
+ */
+export function tryArmor(s: GameState, atk: FighterState | null, def: FighterState, st: Strike): boolean {
+  if (def.state !== "attack" || def.armorLeft <= 0) return false;
+  const mv = moveOf(def);
+  if (!mv?.armor || def.mf < mv.armor.from || def.mf > mv.armor.to) return false;
+  def.armorLeft--;
+  const dmg = Math.max(1, pct(st.damage, 50));
+  def.health = Math.max(s.config.infiniteHealth ? 1 : 0, def.health - dmg);
+  def.hitstop = st.hitstop;
+  if (atk && !st.projectile) {
+    atk.hitstop = st.hitstop;
+    atk.contact = "block";
+    atk.contactMf = atk.mf;
+    atk.sinceContact = 0;
+  }
+  s.events.push({ type: "armor", side: def.side, x: st.at?.x ?? def.x, y: st.at?.y ?? def.y + px(100), damage: dmg });
+  if (def.health <= 0) {
+    setState(def, "ko");
+    def.vy = px(8);
+    def.y = 1;
+    s.events.push({ type: "ko", side: atk ? atk.side : ((1 - def.side) as Side), x: def.x, y: def.y + px(100) });
+  }
+  return true;
+}
+
 /** ¿Puede este golpe tocar al defensor según su estado (juggles, invulnerabilidad)? */
 export function strikeCanTouch(def: FighterState, st: Strike): boolean {
   if (def.state === "ko" || def.state === "knockdown" || def.state === "wakeup") return false;
@@ -279,10 +308,10 @@ export function resolveStrikes(s: GameState): void {
     if (!groups.length) continue;
     const mv = moveOf(atk);
     if (!mv) continue;
-    const st = strikeFromMove(atk, mv);
-    if (!strikeCanTouch(def, st)) continue;
     const hurt = hurtboxes(def);
     for (const g of groups) {
+      const st = strikeFromMove(atk, mv, g.hit);
+      if (!strikeCanTouch(def, st)) break;
       const at = overlapPoint(g.boxes, hurt);
       if (at) {
         pending.push({ atk: side, hit: g.hit, strike: { ...st, at } });
@@ -305,6 +334,7 @@ export function resolveStrikes(s: GameState): void {
     atk.hitMask |= 1 << r.hit;
     if (tryParry(s, atk, def, r.strike)) continue;
     if (r.block.ok) applyBlock(s, atk, def, r.strike, r.block.crouch);
+    else if (tryArmor(s, atk, def, r.strike)) continue;
     else applyHit(s, atk, def, r.strike, r.counter && results.length === 1);
   }
 }

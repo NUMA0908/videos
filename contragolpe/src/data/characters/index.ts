@@ -1,8 +1,10 @@
 import type { CharacterData, MoveData, ProjectileData } from "../types";
+import { CHISPA } from "./chispa";
+import { MURALLA } from "./muralla";
 import { RAYO } from "./rayo";
 
 /** Registro de personajes jugables (orden = orden en la pantalla de selección). */
-export const CHARACTERS: CharacterData[] = [RAYO];
+export const CHARACTERS: CharacterData[] = [RAYO, CHISPA, MURALLA];
 
 const byId = new Map(CHARACTERS.map((c) => [c.id, c]));
 
