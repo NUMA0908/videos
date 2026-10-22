@@ -138,7 +138,7 @@ velocidades, buffer, ventana de parry e historial de inputs. F3 muestra FPS y ti
 - Intro de ronda (110 frames, nadie se mueve) → pelea → KO (170 frames: el KO'd sale despedido, el ganador posa)
   → siguiente ronda. Vida al máximo cada ronda; el medidor de súper se conserva (permite remontadas).
 
-## 9. Profundidad: agarres, especiales, combos, medidor y súper
+## 8. Profundidad: agarres, especiales, combos, medidor y súper
 
 ### Prioridad y tolerancias
 - **Súper > especial > agarre > normal.** Si un mismo frame cumple varias, gana la de más prioridad.
@@ -195,6 +195,52 @@ velocidades, buffer, ventana de parry e historial de inputs. F3 muestra FPS y ti
   SP+→ = Embestida larga, SP+← = proyectil lento. Mismo daño que con el motion: la ventaja del motion es solo
   elegir la versión. Los motion inputs siempre funcionan. Se puede desactivar en Opciones.
 
+## 9. Parry (pieza central)
+
+Inspirado en el parry de *Street Fighter III: 3rd Strike*: riesgo y recompensa puros, sin coste de medidor,
+convive con bloquear, atacar y agarrar. Buscamos un punto medio: ventana corta pero alcanzable y castigo real al fallar.
+
+| Regla | Valor |
+|---|---|
+| Ventana (desde que se pulsa) | **Normal 8** · Fácil 11 · Hardcore 5 frames (Opciones) |
+| En el aire | ventana − 3 (Normal: 5 frames); desvía cualquier altura |
+| De pie | desvía **alto y medio** + proyectiles |
+| Agachado (↓ + PARRY) | desvía **bajo y medio** + proyectiles |
+| Acierto | 0 daño · congelamiento de 8 frames para ambos · el defensor actúa en cuanto termina · el atacante suma **+10 frames** de recuperación · +60 de medidor |
+| Fallo | 20 frames de recuperación en estado de **counter hit** · +14 frames de enfriamiento (no se puede volver a intentar) |
+| Agarres | **siempre le ganan** al parry (no se pueden parriar) |
+| Red parry | en blockstun, pulsar PARRY abre 3 frames; si el siguiente golpe llega dentro, se desvía. Cuesta 250 (1/4 de medidor) |
+
+- **Frame exacto** (con tests para las tres dificultades): si el golpe conecta en el frame H, el parry pulsado
+  en cualquier frame de `H − (ventana − 1)` a `H` (incluido el mismo frame del impacto) acierta; un frame antes
+  es "demasiado pronto" (y el golpe entra como counter hit); un frame después ya es tarde.
+- La ventana se abre al pulsar (no al mantener): para parriar varios golpes seguidos (la súper de 5 golpes) hay
+  que volver a pulsar en cada uno, al ritmo. Pulsar durante el congelamiento del parry anterior queda en el buffer.
+- Un movimiento parriado no puede cancelarse (ni chain ni especial): el atacante se come los +10 frames.
+- Tras un parry aéreo se recupera la acción aérea: se puede contraatacar en el aire.
+
+### Balance con el resto del sistema
+- **Triángulo**: bloquear gana a atacar, agarrar gana a bloquear, atacar rápido gana a agarrar.
+  **Parry** gana a los golpes predecibles (jump-ins, proyectiles lanzados de lejos, el final de una cadena
+  que siempre es igual); pero un parry a ciegas pierde contra agarres, contra golpes retrasados (el parry se
+  agota y te comes un counter hit) y contra la altura contraria (bajo/alto).
+- Los proyectiles siguen siendo útiles: el parry no da medidor suficiente para compensar el riesgo de fallar,
+  y la Onda lenta sirve para avanzar detrás de ella (si te parrian la onda, sigues cubierto).
+- El muñeco del modo Entrenamiento y la CPU usan el parry con limitaciones (reacción con retraso, fallos).
+
+### Trial de parry (enseñar sin abrumar)
+Siete lecciones con un muñeco que repite patrones; cada una añade una idea:
+1. **El tiempo del parry** — un directo lento y visible (3 aciertos).
+2. **Proyectiles** — la Onda lenta (3).
+3. **Ataques bajos** — barrida: ↓ + PARRY (3).
+4. **Ataques en salto** — se parrian de pie (3).
+5. **¿Alto o bajo?** — mezcla aleatoria Martillo (alto) / Barrida (bajo), leyendo la anticipación (4).
+6. **Desviar una súper** — los 5 golpes seguidos (1).
+7. **Red parry** — bloquear agachado y desviar el 2.º o 3.er golpe de una cadena (2).
+
+Tras cada fallo dice el porqué: "¡Muy pronto! Por N frames", "¡Tarde! Por N frames", "Altura incorrecta"…
+Un test simula cada lección y comprueba que el ataque conecta y que existe un timing que la supera.
+
 ## 10. Frame data completa
 
 Columnas "Bloqueo", "Hit" y "CH" = ventaja en frames si el primer frame activo conecta.
@@ -211,6 +257,7 @@ del suelo que conecten (cuanto más tarde, más ventaja; un salto profundo deja 
 | Patada baja al muslo | LK | 6 | 3 | 8 | 35 | medio | 14 | 10 | 0 | +4 | +7 | 4 | cancel: chain/special/super |
 | Directo | HP | 10 | 3 | 16 | 80 | medio | 20 | 14 | -4 | +2 | +8 | 9 | cancel: special/super |
 | Patada circular | HK | 12 | 4 | 20 | 95 | medio | 22 | 16 | -7 | -1 | +5 | 10 |  |
+| Martillo (overhead) | → + HP | 20 | 3 | 14 | 70 | alto | 18 | 12 | -4 | +2 | +8 | 9 |  |
 | Jab agachado | ↓ + LP | 4 | 2 | 7 | 25 | medio | 11 | 8 | 0 | +3 | +6 | 4 | cancel: chain/special/super |
 | Patada rastrera | ↓ + LK | 5 | 2 | 8 | 25 | bajo | 13 | 9 | 0 | +4 | +7 | 4 | cancel: chain/special/super |
 | Gancho ascendente | ↓ + HP | 7 | 4 | 18 | 85 | medio | 19 | 12 | -9 | -2 | +4 | 9 | si pega a un rival en el aire, lo lanza; cancel: special/super |

@@ -42,6 +42,7 @@ export const RAYO: CharacterData = {
     stand: { LP: "st_lp", HP: "st_hp", LK: "st_lk", HK: "st_hk" },
     crouch: { LP: "cr_lp", HP: "cr_hp", LK: "cr_lk", HK: "cr_hk" },
     air: { LP: "j_lp", HP: "j_hp", LK: "j_lk", HK: "j_hk" },
+    command: [{ dir: 6, button: "HP", move: "oh" }],
   },
   specials: [
     { move: "dp_l", motion: "dp", button: "LP" },

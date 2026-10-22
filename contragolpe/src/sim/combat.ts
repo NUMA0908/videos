@@ -6,6 +6,7 @@ import { activeHitboxes, anyOverlap, hurtboxes, isAirborne } from "./boxes";
 import { setState } from "./fighter";
 import { pct, px, sign } from "./fixed";
 import { Btn, inputAt } from "./input";
+import { tryParry } from "./parry";
 import { applyPush, WALL_MAX, WALL_MIN } from "./physics";
 import type { FighterState, GameState, Side } from "./types";
 
@@ -287,6 +288,7 @@ export function resolveStrikes(s: GameState): void {
     const atk = s.fighters[r.atk];
     const def = s.fighters[r.atk === 0 ? 1 : 0];
     atk.hitMask |= 1 << r.hit;
+    if (tryParry(s, atk, def, r.strike)) continue;
     if (r.block.ok) applyBlock(s, atk, def, r.strike, r.block.crouch);
     else applyHit(s, atk, def, r.strike, r.counter && results.length === 1);
   }

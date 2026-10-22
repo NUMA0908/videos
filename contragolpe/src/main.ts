@@ -1,9 +1,17 @@
 import { App } from "./app/App";
 import { FightScene } from "./scenes/FightScene";
+import { TrialScene } from "./scenes/TrialScene";
 
 const canvas = document.getElementById("game") as HTMLCanvasElement;
 const app = new App(canvas);
-app.setScene(new FightScene(app, { chars: ["rayo", "rayo"], mode: "versus" }, "muelle"));
+const params = new URLSearchParams(location.search);
+
+function versus(): void {
+  app.setScene(new FightScene(app, { chars: ["rayo", "rayo"], mode: "versus" }, "muelle"));
+}
+
+if (params.get("modo") === "trial") app.setScene(new TrialScene(app, "rayo", versus));
+else versus();
 app.start();
 canvas.focus();
 

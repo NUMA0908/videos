@@ -82,6 +82,26 @@ export const RAYO_MOVES: Record<string, MoveData> = {
     anim: { windup: "rayo.hk_w", strike: "rayo.hk_s", recover: "rayo.hk_r", limb: "footF" },
   }),
 
+  oh: defineMove({
+    id: "oh",
+    name: "Martillo (overhead)",
+    notation: "→ + HP",
+    strength: "heavy",
+    startup: 20,
+    active: 3,
+    recovery: 14,
+    damage: 70,
+    hitstun: 18,
+    blockstun: 12,
+    guard: "high",
+    motion: [{ from: 6, to: 16, vx: 1.5 }],
+    hit: [{ x: 30, y: 60, w: 52, h: 90 }],
+    limbHurt: [{ x: 20, y: 70, w: 56, h: 80 }],
+    cancels: [],
+    // Lento y bien visible: rompe la guardia agachada, pero se puede reaccionar (o parriar de pie).
+    anim: { windup: "rayo.oh_w", strike: "rayo.oh_s", limb: "handF" },
+  }),
+
   // ---------------------------------------------------------------- agachado
   cr_lp: defineMove({
     id: "cr_lp",

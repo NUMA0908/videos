@@ -38,6 +38,8 @@ registerPoses({
   "rayo.jhk_w": ik({ torso: -6, head: -6, hF: [34, 50], hB: [20, 54], fF: [24, -26], fB: [4, -44], ...AIR }),
   "rayo.jhk_s": ik({ torso: -18, head: -4, hF: [24, 58], hB: [4, 50], fF: [82, -36], fB: [-8, -40], ...AIR }),
 
+  "rayo.oh_w": ik({ torso: -16, head: -10, hF: [6, 112], hB: [-10, 100], fF: [34, -80], fB: [-38, -80] }),
+  "rayo.oh_s": ik({ hx: 8, torso: 34, head: -2, hF: [62, 22], hB: [40, 30], fF: [52, -76], fB: [-40, -78] }),
   "rayo.throw_w": ik({ torso: 14, head: -6, hF: [52, 54], hB: [44, 58], fF: [36, -80], fB: [-36, -78], open: 1 }),
   "rayo.fb_w": ik({ torso: -6, head: -6, hF: [-14, 32], hB: [-20, 38], fF: [42, -80], fB: [-36, -80], open: 1 }),
   "rayo.fb_s": ik({ torso: 20, head: -10, hF: [62, 46], hB: [58, 52], fF: [48, -78], fB: [-42, -80], open: 1 }),

@@ -1,6 +1,6 @@
 import { getChar } from "../data/characters";
 import { TUNING } from "../data/tuning";
-import { applyMoveMotion, attackContext, consume, endMove, moveOf, moveTotal, together, tryActions } from "./actions";
+import { applyMoveMotion, attackContext, buffered, consume, endMove, moveOf, moveTotal, together, tryActions } from "./actions";
 import { resolveStrikes } from "./combat";
 import {
   advanceMovementState,
@@ -11,10 +11,12 @@ import {
   neutralMovement,
   recover,
   setState,
+  toNeutral,
   updateBuffer,
 } from "./fighter";
 import { cleanSOCD, isDown, pushInput } from "./input";
 import { integrate, resolveBodies } from "./physics";
+import { tryParry, updateParry, updateRedParry } from "./parry";
 import { resolveProjectiles, spawnProjectile, updateProjectiles } from "./projectiles";
 import { resolveThrows, updateThrower, updateThrown } from "./throws";
 import { updateRoundEnd, updateRoundStart } from "./round";
@@ -76,7 +78,7 @@ export function stepInPlace(s: GameState, in0: number, in1: number): void {
   updateProjectiles(s);
   resolveStrikes(s);
   resolveThrows(s);
-  resolveProjectiles(s, () => false);
+  resolveProjectiles(s, (st, def, strike) => tryParry(st, null, def, strike));
   updateRoundEnd(s);
 }
 
@@ -106,6 +108,7 @@ function updateFighter(s: GameState, side: Side): void {
   const o = s.fighters[side === 0 ? 1 : 0];
   f.t++;
   if (f.throwProtect > 0) f.throwProtect--;
+  if (f.parryCooldown > 0) f.parryCooldown--;
 
   switch (f.state) {
     case "attack":
@@ -137,7 +140,16 @@ function updateFighter(s: GameState, side: Side): void {
         f.stun--;
         // Se puede cambiar de guardia alta a baja durante el blockstun.
         f.crouching = isDown(currentDir(s, side));
+        if (controlEnabled(s)) updateRedParry(s, f, buffered(f, "PARRY"));
       } else recover(f);
+      break;
+    case "parry":
+      updateParry(s, f);
+      break;
+    case "parryFail":
+      if (f.y === 0) f.vx = 0;
+      if (f.stun > 0) f.stun--;
+      else if (f.y === 0) toNeutral(f);
       break;
     case "knockdown":
       f.vx = 0;
@@ -213,6 +225,10 @@ function onLand(s: GameState, f: FighterState): void {
         setState(f, "knockdown");
         s.events.push({ type: "knockdown", side: f.side, x: f.x, y: 0 });
       }
+      break;
+    case "parryFail":
+      setState(f, "land");
+      f.landingRecovery = 4;
       break;
     case "thrown":
       setState(f, "knockdown");

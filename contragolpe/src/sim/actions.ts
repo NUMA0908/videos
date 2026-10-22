@@ -18,6 +18,7 @@ import {
   type ButtonName,
   type InputHistory,
 } from "./input";
+import { startParry } from "./parry";
 import { hasProjectile, spawnProjectile } from "./projectiles";
 import type { FighterState, GameState, Side } from "./types";
 
@@ -256,11 +257,19 @@ function tryNormal(s: GameState, side: Side, ctx: ActionContext): boolean {
   return true;
 }
 
+function tryParryInput(s: GameState, side: Side): boolean {
+  const f = s.fighters[side];
+  if (!buffered(f, "PARRY") || f.parryCooldown > 0) return false;
+  startParry(s, f, currentDir(s, side));
+  return true;
+}
+
 /** Intenta una acción en el contexto dado. Devuelve true si empezó algo. */
 export function tryActions(s: GameState, side: Side, ctx: ActionContext): boolean {
   const f = s.fighters[side];
   if (ctx === "air") {
     if (f.airUsed) return false;
+    if (tryParryInput(s, side)) return true;
     return tryNormal(s, side, "air");
   }
   const cur = ctx === "neutral" ? null : moveOf(f);
@@ -271,6 +280,7 @@ export function tryActions(s: GameState, side: Side, ctx: ActionContext): boolea
   const allowNormal = ctx === "neutral" || (ctx === "cancel" && cancels.includes("chain") && f.chain < TUNING.maxChain - 1);
   if (allowSuper && trySuper(s, side, ctx)) return true;
   if (allowSpecial && trySpecial(s, side, ctx)) return true;
+  if (ctx === "neutral" && tryParryInput(s, side)) return true;
   if (allowThrow && tryThrow(s, side, ctx)) return true;
   if (allowNormal && tryNormal(s, side, ctx)) return true;
   return false;
