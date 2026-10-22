@@ -10,11 +10,12 @@ import { px } from "../sim/fixed";
 import { blockAdvantage, fmtAdv, hitAdvantage } from "../sim/frameData";
 import { startPositions } from "../sim/state";
 import type { GameMode, GameState, Side } from "../sim/types";
-import { drawInputLogs } from "../render/debug";
 import { getStage } from "../render/stages";
 import { VIEW_H, VIEW_W } from "../render/view";
 import { CHAR_STATS } from "../ui/charInfo";
-import { playerDevice } from "../ui/glyphs";
+import { drawRich, playerDevice, type GlyphDevice } from "../ui/glyphs";
+import { drawInputHistory, drawLiveInput } from "../ui/inputHistory";
+import { PadSettingsScene } from "./PadSettingsScene";
 import { drawCharacter, drawMenu, drawPanel, drawText, drawTitle, UI, type MenuItem } from "../ui/ui";
 import { FightScene } from "./FightScene";
 import { drawMoveList } from "./MoveListScene";
@@ -82,6 +83,8 @@ export class MatchScene implements Scene {
   readonly dummy: Dummy | null = null;
   private splash = 110;
   private pauseOpen = false;
+  /** Entrenamiento: vista en vivo de la entrada del J1. */
+  private showLive = true;
   private padLost: PadLostWatcher;
   private pauseSel = 0;
   private moveListFor: string | null = null;
@@ -293,6 +296,12 @@ export class MatchScene implements Scene {
       });
       items.push({ label: "Medidor infinito", value: this.infiniteMeter ? "Sí" : "No", change: () => (this.infiniteMeter = !this.infiniteMeter) });
       items.push({ label: "Frame data en pantalla", value: this.showFrameData ? "Sí" : "No", change: () => (this.showFrameData = !this.showFrameData) });
+      items.push({ label: "Entrada en vivo", value: this.showLive ? "Sí" : "No", change: () => (this.showLive = !this.showLive), hint: "Stick, dirección y botones del J1 en tiempo real (abajo a la izquierda)." });
+      items.push({
+        label: "Calibrar el stick",
+        act: () => this.app.setScene(new PadSettingsScene(this.app, () => this.app.setScene(this))),
+        hint: "Zona muerta, histéresis y diagonales con la vista del stick; al volver sigues en la pausa.",
+      });
       items.push({ label: "Cajas (hitboxes)", value: this.fight.debug ? "Sí" : "No", change: () => (this.fight.debug = !this.fight.debug), hint: "También con F1 en cualquier momento." });
       items.push({ label: "Reiniciar posición (R)", act: () => (this.resetPositions(false), this.closePause()) });
       items.push({ label: "Reiniciar en la esquina (T)", act: () => (this.resetPositions(true), this.closePause()) });
@@ -484,7 +493,10 @@ export class MatchScene implements Scene {
 
   private drawTraining(ctx: CanvasRenderingContext2D): void {
     const s = this.fight.state;
-    drawInputLogs(ctx, this.fight.logs, 180);
+    // Historial con los íconos del dispositivo de cada lado (el muñeco, con nombres).
+    const dummyDev: GlyphDevice = { ...playerDevice(this.app, 1), textOnly: true };
+    drawInputHistory(ctx, this.fight.logs, 186, [playerDevice(this.app, 0), this.recording ? playerDevice(this.app, 0) : dummyDev], [this.showLive ? 11 : 14, 14]);
+    if (this.showLive) drawLiveInput(ctx, this.fight.lastInputs[this.recording ? 1 : 0], this.app.input.reader(0), this.app.settings.padTuning, playerDevice(this.app, 0), 8, VIEW_H - 136);
     if (this.showFrameData) {
       drawPanel(ctx, VIEW_W / 2 - 200, 74, 400, 74, 0.8);
       const id = this.lastMoveP1;
@@ -504,11 +516,9 @@ export class MatchScene implements Scene {
     const mode = this.dummy ? DUMMY_MODES.find((m) => m.id === this.dummy!.mode)!.label : "";
     const rec = this.recording ? "  ● GRABANDO (controlas al muñeco, F4 para parar)" : "";
     drawText(ctx, `Muñeco: ${mode}${rec}`, VIEW_W / 2, VIEW_H - 64, { size: 13, align: "center", color: this.recording ? "#ff6b6b" : UI.dim, stroke: true });
-    drawText(ctx, "Esc pausa · R reiniciar · T esquina · F1 cajas · F4 grabar · F5 reproducir", VIEW_W / 2, VIEW_H - 46, {
-      size: 12,
-      align: "center",
-      color: UI.dim,
-      stroke: true,
-    });
+    const hint = this.app.input.reader(0)
+      ? "{PAUSE} pausa: reiniciar posición, grabar al muñeco, calibrar el stick…"
+      : "Esc pausa · R reiniciar · T esquina · F1 cajas · F4 grabar · F5 reproducir";
+    drawRich(ctx, hint, VIEW_W / 2, VIEW_H - 46, playerDevice(this.app, 0), { size: 12, align: "center", color: UI.dim });
   }
 }

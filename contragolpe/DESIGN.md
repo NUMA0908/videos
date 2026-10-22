@@ -517,6 +517,37 @@ cruceta y stick produce la misma secuencia de bitmasks y el mismo estado final d
   - Opciones: "Vibración del mando" (sí/no) e "Intensidad" (10–100 %, escala las magnitudes); al cambiarlas
     vibra una vez de prueba.
 
+### Entrenamiento, pruebas y estado final (fase 5)
+- **Historial de entrada** del entrenamiento con los íconos del dispositivo de cada lado (lo que de verdad
+  llegó a la simulación, con los frames que duró cada entrada); el muñeco se muestra con nombres (LP, HP…).
+  Agarre y súper desde LB/RT aparecen como sus dos botones, que es lo que ve la simulación.
+- **Entrada en vivo** (opción de la pausa, activada por defecto): stick con su zona muerta y posición real,
+  cruceta con la dirección final (tras SOCD) y los botones encendidos mientras se pulsan.
+- **Calibración del stick** también desde la pausa del entrenamiento (la misma pantalla de Opciones; al
+  volver se sigue en la pausa).
+- **Pruebas** (todas con mandos simulados, `tests/padHelpers.ts`): zona muerta radial, histéresis de radio y
+  de sector, SOCD de teclado/mando/mezcla, mapeo estándar, remapeo e intercambio, perfiles por tipo, gatillos
+  con umbral e histéresis, máscaras, hotplug (unión al pulsar, baja, reconexión con otro índice, mando que
+  ocupa el hueco, paso a teclado), captura guiada (botón, gatillo en eje, hat, reposo), vibración (a quién,
+  proporción, sin acumulación, fallos silenciosos), menús con las escenas reales solo con mando y sin dobles
+  disparos, y la **prueba clave**: QCF + LP con teclado, cruceta y stick → misma secuencia de bitmasks y
+  mismo hash final de la simulación. Los tests de determinismo existentes siguen pasando sin cambios.
+- **Sin verificar aquí** (no hay mandos físicos en el contenedor): el comportamiento con hardware real
+  (ids exactos de cada modelo y sistema, vibración física, deriva de sticks gastados, palancas arcade con hat).
+  Todo eso está en la lista de pruebas manuales del README; en la app de escritorio se probó inyectando mandos
+  simulados en `navigator.getGamepads` (menús, unión, desconexión, Onda con el stick, remapeo, guía, íconos y
+  llamadas a `playEffect`).
+
+#### Lista "listo cuando"
+- [x] Partida completa con mando; íconos Xbox y PlayStation (verificado con mandos simulados; falta hardware real).
+- [x] Teclado, cruceta y stick → mismos inputs de simulación (test con hash).
+- [x] Cuartos de círculo cómodos con el stick (diagonales de 56°, test con arco descuidado).
+- [x] Remapeo, perfiles guardados y mandos no estándar (configuración guiada con botones, ejes y hat).
+- [x] Hotplug: pausa al desconectar y recuperación al reconectar.
+- [x] Todos los menús solo con mando (test con las escenas reales).
+- [x] Vibración con interruptor e intensidad.
+- [x] Tests en verde, 60 FPS (ver medición en §18, fase 5), README actualizado.
+
 ## 18. App de escritorio (Electron)
 
 ### Decisión: Electron + electron-builder
@@ -621,7 +652,7 @@ y lo deja en `release/smoke-metrics.json` (también en cada artefacto del CI, po
 |---|---|---|
 | Arranque hasta el menú interactivo | 0,4–0,7 s (AppImage: ~13 s la 1.ª vez en el contenedor, por extraerse sin FUSE) | < 3 s |
 | FPS / ticks por segundo en combate | 60 / 60 | 60 estables |
-| Tiempo de frame en 30 s de combate (1800 frames) | p50 16,7 ms · p99 16,8 ms · 0 frames > 20 ms | sin tirones |
+| Tiempo de frame en 30 s de combate (1800 frames) | p50 16,7 ms · p99 16,8 ms · 0–4 frames > 20 ms (máx. 33–66 ms) según la carga del contenedor | sin tirones |
 | Coste por tick / por dibujo | ~0,2 ms / ~0,6–0,9 ms | — |
 | Montón JS del juego | menú ~3 MB · combate 4,5–7 MB | — |
 | Memoria total (conjunto de trabajo, 4–5 procesos) | menú ~500 MB · combate ~620 MB | — |
@@ -634,7 +665,12 @@ y lo deja en `release/smoke-metrics.json` (también en cada artefacto del CI, po
   (sin `filter`), la geometría "aleatoria" de los escenarios se calcula una vez al cargar, los colores sombreados
   se memorizan y la lectura de entrada no crea cierres. Queda ~1 MB/s de asignaciones de vida muy corta (sobre
   todo números y objetos temporales del dibujo con Canvas): el recolector joven las limpia ~1 vez por segundo en
-  fracciones de milisegundo y no aparecen como tirones (0 frames > 20 ms en las mediciones).
+  fracciones de milisegundo y no aparecen como tirones.
+- **Variación del entorno**: el contenedor (GPU por software, CPU compartida) produce de vez en cuando un
+  frame perdido. Medición A/B al terminar el soporte de mando, misma máquina y mismo momento: versión previa
+  1/0/3/1 frames > 20 ms por 30 s, versión con mando 2/2/1 (y 0/2/0 en otra tanda), con la misma tasa de
+  asignación (~1 MB/s) y p99 de 16,8 ms en todas: no hay regresión medible. En una máquina normal con GPU
+  real esos picos no deberían aparecer; queda en la lista de pruebas manuales.
 - **Modo bajo consumo** (Opciones): la mitad de partículas, sin estelas de golpe, sin desenfoque en los contornos
   (lo más caro de dibujar), sin líneas de velocidad de la súper ni lluvia, y lienzo a 1× aunque la pantalla sea HiDPI.
   La simulación no cambia.

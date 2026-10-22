@@ -117,3 +117,14 @@ describe("íconos por dispositivo", () => {
     expect(input.lastDevice).toBe(-1);
   });
 });
+
+describe("historial de entrada del entrenamiento", () => {
+  it("cada entrada: dirección relativa al rival + botones como íconos", async () => {
+    const { historyTokens } = await import("../src/ui/inputHistory");
+    const { Btn } = await import("../src/sim/input");
+    expect(historyTokens(Btn.DOWN | Btn.RIGHT | Btn.LP, 1)).toBe("↘ {LP}");
+    expect(historyTokens(Btn.DOWN | Btn.RIGHT | Btn.LP, -1)).toBe("↙ {LP}"); // mirando a la izquierda, → es atrás
+    expect(historyTokens(Btn.HP | Btn.HK, 1)).toBe("· {HP} {HK}");
+    expect(historyTokens(Btn.PARRY, 1)).toBe("· {PARRY}");
+  });
+});

@@ -20,6 +20,8 @@ export interface GlyphDevice {
   pad: PadReader | null;
   profile: PadBindings | null;
   keys: KeyBindings;
+  /** Solo nombres (LP, HP…): para lados que no maneja nadie, como el muñeco. */
+  textOnly?: boolean;
 }
 
 export function deviceOf(app: App, pad: PadReader | null, keySet: 0 | 1 = 0): GlyphDevice {
@@ -209,6 +211,7 @@ function tokenGlyph(ctx: CanvasRenderingContext2D, token: string, dev: GlyphDevi
     w += h * 0.45;
     return w + tokenGlyph(ctx, b, dev, x + w, cy, h, draw);
   }
+  if (dev.textOnly) return pill(ctx, token === "PARRY" ? "PY" : token, x, cy, h, draw, { radius: 4 });
   const r = dev.pad;
   if (r) {
     const kind = r.kind;

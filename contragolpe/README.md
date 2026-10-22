@@ -71,12 +71,34 @@ Lo que no se puede automatizar sin hardware. Marcar en cada plataforma:
    recupera y el juego espera a que el jugador continúe. Con "Pausar al perder el foco" en No, solo baja el volumen.
 5. **Cursor**: en combate desaparece a los 2 s sin mover el ratón; reaparece al moverlo y en los menús.
 6. **Cerrar en partida**: con la opción activada pregunta antes de cerrar; en el menú cierra directamente.
-7. **Mando**: conectar antes y después de abrir la app; desconectarlo en mitad de un combate (la partida no
-   debe colgarse ni dar errores; revisar `logs/main.log`).
+7. **Mando**: conectar antes y después de abrir la app; desconectarlo en mitad de un combate (se pausa con
+   aviso, sin errores; el alta y la baja quedan en `logs/main.log`). Lista completa en "Pruebas manuales con mando real".
 8. **Bajo consumo**: activarlo en un portátil con batería; el juego sigue a 60 FPS con menos efectos.
 9. **Instaladores**: Windows (instalar, acceso directo, desinstalar; portable desde una memoria USB),
    macOS (abrir desde el dmg con clic derecho → Abrir), Linux (AppImage con `chmod +x`).
 10. **Un solo ejemplar**: abrir la app dos veces → la segunda enfoca la primera.
+
+### Pruebas manuales con mando real
+
+Todo lo del mando tiene tests con mandos simulados, pero estas comprobaciones necesitan hardware:
+
+1. **Xbox** (cable y Bluetooth): se reconoce como "Xbox" y los íconos son A/B/X/Y de colores; X = LP, Y = HP,
+   A = LK, B = HK, LB = agarre, RB = parry, RT = súper, Start = pausa. En menús A acepta y B vuelve.
+2. **PlayStation** (DualShock 4 / DualSense): íconos ✕ ○ □ △ y L1/R1/L2/R2; Options = pausa.
+3. **Stick**: cuartos de círculo (↓↘→ + P) salen cómodos sin apuntar; caminar no salta a diagonales por
+   accidente; en Opciones → Mando: sensibilidad, el punto del stick se mueve y cambia de color al salir de la
+   zona muerta. Probar también un mando gastado con deriva (subir la zona muerta debe eliminarla).
+4. **Gatillos**: RT a medio recorrido no dispara la súper con el umbral por defecto; bajarlo en Opciones sí.
+5. **Desconexión en partida**: quitar el cable / apagar el mando → pausa con el aviso; volver a conectarlo →
+   el aviso desaparece y el mando sigue siendo del mismo jugador; repetir pulsando una tecla en vez de reconectar.
+6. **Dos mandos y mezcla**: Versus con dos mandos (el primero que pulsa es J1); Versus con teclado + mando.
+7. **Vibración**: golpe ligero = toque corto, fuerte = golpe seco, KO = largo; bloquear y parry se notan
+   distintos; la vibración no se encadena en golpes múltiples; con la opción en "No" no vibra; la intensidad
+   cambia la fuerza. (En navegadores sin `vibrationActuator` simplemente no vibra.)
+8. **Remapeo**: asignar Y a Puño ligero → avisa del intercambio con Puño fuerte; los íconos de la lista de
+   movimientos cambian; "Restablecer este perfil" vuelve al diseño de fábrica; reiniciar el juego conserva el perfil.
+9. **Palanca arcade / mando no estándar**: aparece como "No estándar"; la configuración guiada pide cada
+   botón y dirección (hat incluido) y después se juega normalmente.
 
 ### Instaladores sin firmar
 
@@ -132,7 +154,21 @@ Configuración guiada** pide cada botón y dirección uno por uno. Sensibilidad 
 histéresis, diagonales) y umbral de los gatillos en **Opciones → Mando: sensibilidad y calibración**.
 
 Otras teclas: **F1** cajas y estado (debug) · **F3** FPS · en Entrenamiento: **R** reiniciar posición,
-**T** esquina, **F4** grabar al muñeco, **F5** reproducir la grabación.
+**T** esquina, **F4** grabar al muñeco, **F5** reproducir la grabación (con mando, todo eso está en la pausa).
+
+### Mando
+
+- Funciona cualquier mando que el navegador/Electron reconozca con el mapeo estándar (Xbox, DualShock/DualSense,
+  Switch Pro y la mayoría de genéricos); el juego detecta el tipo y muestra sus íconos (letras de colores en
+  Xbox, ✕ ○ □ △ en PlayStation). Cruceta y stick izquierdo a la vez.
+- **El primer mando que pulsa un botón es J1**; el segundo, J2. En **Versus (2 jugadores)** hay una pantalla
+  "Presiona un botón para unirte" que admite dos mandos o teclado + mando.
+- Si un mando se desconecta en mitad de un combate, el juego se pausa: reconéctalo (vuelve a ser tu mando) o
+  pulsa una tecla para seguir con teclado.
+- **Opciones**: Vibración del mando e intensidad · Botones del mando (remapeo por tipo de mando; si asignas un
+  botón ocupado se intercambian; configuración guiada para palancas arcade) · Mando: sensibilidad y calibración.
+- En **Entrenamiento**: historial de entrada con los íconos de tu mando, entrada en vivo (stick, dirección y
+  botones) y "Calibrar el stick" desde la pausa.
 
 Notación: ↓↘→ = cuarto de círculo hacia el rival; → = hacia el rival; P = cualquier puño; K = cualquier patada.
 
@@ -204,7 +240,8 @@ La frame data completa (startup, activos, recuperación, ventajas) está en [DES
 
 Arcade (3 combates) · Versus (2 jugadores) · Versus contra CPU · Entrenamiento · Trial de parry ·
 Lista de movimientos · Opciones (volumen, dificultad del parry Fácil/Normal/Hardcore, inputs simplificados,
-dificultad de la CPU, sacudida y destellos para accesibilidad, controles).
+dificultad de la CPU, sacudida y destellos para accesibilidad, pantalla, vibración, botones del mando,
+sensibilidad del stick, teclado).
 
 ## Estructura
 
@@ -213,7 +250,7 @@ src/sim/      simulación determinista (step, combate, parry, agarres, proyectil
 src/data/     personajes, movimientos (frame data como datos) y ajustes globales
 src/render/   esqueleto procedural, poses, animación, escenarios, HUD, efectos
 src/audio/    sonido y música sintetizados
-src/input/    teclado, mando y remapeo
+src/input/    teclado y mando: lectura, zona muerta, SOCD, perfiles, remapeo, vibración
 src/ai/       CPU, muñeco de entrenamiento, lecciones del trial, bots de balance
 src/scenes/   menús y modos de juego
 tests/        Vitest
