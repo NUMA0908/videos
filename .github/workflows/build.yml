@@ -1,0 +1,87 @@
+# Construye CONTRAGOLPE (app de escritorio) en Windows, Linux y macOS, cada uno en su runner nativo,
+# y sube los instaladores como artefactos. Los instaladores NO están firmados (ver contragolpe/README.md).
+name: build
+
+on:
+  push:
+    paths:
+      - "contragolpe/**"
+      - ".github/workflows/build.yml"
+  pull_request:
+    paths:
+      - "contragolpe/**"
+      - ".github/workflows/build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  desktop:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows (NSIS + portable)
+            os: windows-latest
+            target: --win nsis portable
+            artifacts: |
+              contragolpe/release/*.exe
+          - name: Linux (AppImage)
+            os: ubuntu-latest
+            target: --linux AppImage
+            artifacts: |
+              contragolpe/release/*.AppImage
+          - name: macOS (dmg)
+            os: macos-latest
+            target: --mac dmg
+            artifacts: |
+              contragolpe/release/*.dmg
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: contragolpe
+    env:
+      # Sin certificados: que electron-builder no busque identidades de firma.
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron
+      ELECTRON_BUILDER_CACHE: ${{ github.workspace }}/.cache/electron-builder
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: contragolpe/package-lock.json
+
+      - uses: actions/cache@v4
+        with:
+          path: .cache
+          key: electron-${{ runner.os }}-${{ hashFiles('contragolpe/package-lock.json') }}
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Tests (Vitest)
+        run: npm test
+
+      - name: Compilar juego y proceso principal
+        run: |
+          npm run build
+          npm run electron:compile
+
+      - name: Empaquetar
+        run: npx electron-builder ${{ matrix.target }} --publish never
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: contragolpe-${{ runner.os }}
+          path: ${{ matrix.artifacts }}
+          if-no-files-found: error
+          retention-days: 14

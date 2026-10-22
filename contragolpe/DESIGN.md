@@ -466,6 +466,26 @@ solo en ese caso; un usuario normal nunca lo necesita.
   "Reiniciar el juego" / "Salir".
 - Variable `CONTRAGOLPE_USER_DATA` para aislar la carpeta de datos en pruebas automáticas.
 
+### Empaquetado, íconos e instaladores (fase 4)
+- **Identidad**: `productName` CONTRAGOLPE, `appId` `com.contragolpe.game`, versión y descripción de `package.json`.
+- **Ícono original generado por código** (`npm run icon` → `scripts/make-icon.mjs`, Node puro sin dependencias):
+  rasteriza con antialiasing un cuadrado redondeado oscuro, un anillo cian y un rayo amarillo con contorno, y
+  escribe `build/icon.png` (1024), `build/icon.ico` (16–256, PNG embebidos) y `build/icon.icns` (ic07–ic10).
+- **Objetivos**: Windows NSIS (instalador con elección de carpeta y accesos directos) + portable (prioridad),
+  Linux AppImage, macOS dmg. Todo x64 (macOS: arquitectura del runner).
+- **Tamaño**: solo entran `dist/`, `dist-electron/` y `package.json` (sin sourcemaps ni tests; las devDependencies
+  nunca se empaquetan); `asar`, compresión máxima y solo los idiomas es/es-419/en-US de Chromium.
+  `app.asar` ≈ 1,4 MB; el resto es el runtime de Electron (AppImage ≈ 98 MB).
+- **Construcción local de esta fase**: Linux (contenedor x64) → `release/linux-unpacked/` y
+  `release/CONTRAGOLPE-0.1.0-x86_64.AppImage`, ambos **ejecutados** con Playwright: llegan al menú sin errores
+  (desempaquetado ≈ 0,7 s; AppImage ≈ 13 s la primera vez porque el contenedor no tiene FUSE y se extrae entero).
+  Windows y macOS no se pueden construir ni probar aquí: los construye el CI en sus runners nativos.
+- **CI**: `.github/workflows/build.yml` (raíz del repo): matriz windows/ubuntu/macos → `npm ci`, tests, build y
+  `electron-builder --publish never`; sube los instaladores como artefactos (14 días).
+- **Sin firma** (no hay certificados): Windows mostrará SmartScreen y macOS Gatekeeper. Pasos para firmar y para
+  activar las actualizaciones automáticas (electron-updater, hoy desactivado con `AUTO_UPDATE = false` en
+  `electron/main.ts`): ver README.
+
 ## 19. Frame data completa
 
 Columnas "Bloqueo", "Hit" y "CH" = ventaja en frames si el primer frame activo conecta.

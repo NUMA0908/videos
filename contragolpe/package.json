@@ -2,7 +2,7 @@
   "name": "contragolpe",
   "private": true,
   "version": "0.1.0",
-  "description": "Juego de peleas 2D 1 contra 1 en el navegador (TypeScript + Vite + Canvas 2D)",
+  "description": "CONTRAGOLPE: juego de peleas 2D 1 contra 1 con parry, combos y súper. Arte y sonido generados por código.",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,7 +14,10 @@
     "framedata": "tsx scripts/framedata.ts",
     "sim": "tsx scripts/balance.ts",
     "electron:compile": "node scripts/electron-compile.mjs",
-    "app:dev": "node scripts/electron-dev.mjs"
+    "app:dev": "node scripts/electron-dev.mjs",
+    "icon": "node scripts/make-icon.mjs",
+    "app:build": "npm run build && npm run electron:compile && electron-builder --dir",
+    "app:dist": "npm run build && npm run electron:compile && electron-builder"
   },
   "devDependencies": {
     "@types/node": "22.19.1",
@@ -28,5 +31,86 @@
   "dependencies": {
     "electron-updater": "6.8.10"
   },
-  "main": "dist-electron/main.js"
+  "main": "dist-electron/main.js",
+  "productName": "CONTRAGOLPE",
+  "author": {
+    "name": "CONTRAGOLPE"
+  },
+  "license": "UNLICENSED",
+  "build": {
+    "appId": "com.contragolpe.game",
+    "productName": "CONTRAGOLPE",
+    "copyright": "CONTRAGOLPE",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json",
+      "!**/*.map",
+      "!**/*.test.*"
+    ],
+    "asar": true,
+    "compression": "maximum",
+    "electronLanguages": [
+      "es",
+      "es-419",
+      "en-US"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "CONTRAGOLPE",
+      "artifactName": "CONTRAGOLPE-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "CONTRAGOLPE-Portable-${version}.${ext}"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "Game",
+      "icon": "build/icon.png",
+      "artifactName": "CONTRAGOLPE-${version}-${arch}.${ext}",
+      "synopsis": "Juego de peleas 2D",
+      "syncDesktopName": true
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.action-games",
+      "icon": "build/icon.icns",
+      "artifactName": "CONTRAGOLPE-${version}-${arch}.${ext}"
+    },
+    "publish": null
+  },
+  "desktopName": "contragolpe.desktop"
 }

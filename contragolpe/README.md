@@ -22,6 +22,63 @@ npm run framedata    # regenera la frame data de DESIGN.md y la lista de movimie
 Atajos de desarrollo por URL: `?modo=entrenamiento&p1=chispa&p2=muralla&esc=plaza`, `?modo=trial`,
 `?modo=versus`, `?modo=demo` (CPU contra CPU) y `?modo=galeria` (todas las poses).
 
+## App de escritorio (Windows, Linux, macOS)
+
+El juego también se distribuye como app nativa con Electron (detalles técnicos en `DESIGN.md` §18).
+
+```bash
+npm run app:dev      # ventana de escritorio con recarga en caliente
+npm run app:build    # app sin instalador en release/<plataforma>-unpacked/ (rápido, para probar)
+npm run app:dist     # instaladores de la plataforma actual en release/
+npm run icon         # regenera los íconos de build/ (dibujados por código)
+```
+
+Cada plataforma se construye en su propio sistema (electron-builder no genera instaladores de Windows/macOS
+fiables desde Linux). El workflow `.github/workflows/build.yml` lo hace en GitHub Actions y deja como artefactos:
+
+| Plataforma | Archivo | Notas |
+|---|---|---|
+| Windows | `CONTRAGOLPE-Setup-<versión>.exe` | instalador (elige carpeta, crea accesos directos) |
+| Windows | `CONTRAGOLPE-Portable-<versión>.exe` | sin instalar: se ejecuta directamente |
+| Linux | `CONTRAGOLPE-<versión>-x86_64.AppImage` | `chmod +x` y ejecutar |
+| macOS | `CONTRAGOLPE-<versión>.dmg` | arrastrar a Aplicaciones |
+
+Configuración y registros: `%APPDATA%\CONTRAGOLPE` (Windows), `~/.config/CONTRAGOLPE` (Linux),
+`~/Library/Application Support/CONTRAGOLPE` (macOS); los registros están en la subcarpeta `logs/`.
+
+### Instaladores sin firmar
+
+Los instaladores **no están firmados digitalmente** (el proyecto no tiene certificados). Consecuencias:
+
+- **Windows**: SmartScreen mostrará "Windows protegió su PC". Para ejecutarlo: *Más información → Ejecutar de
+  todas formas*. Es el aviso normal para cualquier ejecutable sin firma o sin reputación.
+- **macOS**: Gatekeeper dirá que la app "no se puede abrir porque es de un desarrollador no identificado".
+  Para abrirla: clic derecho sobre la app → *Abrir* (o *Ajustes del Sistema → Privacidad y seguridad → Abrir igualmente*).
+- **Linux**: no aplica (los AppImage no se firman de forma obligatoria).
+
+Qué hace falta para firmar (ninguno de estos datos existe todavía en el repo):
+
+- **Windows**: un certificado de firma de código (OV o EV) de una autoridad certificadora, o un servicio de firma
+  en la nube (p. ej. Azure Trusted Signing). Con un `.pfx`: secretos `CSC_LINK` (archivo en base64) y
+  `CSC_KEY_PASSWORD` en el CI; electron-builder firma solo. Un certificado EV elimina el aviso de SmartScreen de
+  inmediato; uno OV lo hace a medida que el ejecutable gana reputación.
+- **macOS**: cuenta del Apple Developer Program, certificado *Developer ID Application* (secretos `CSC_LINK` y
+  `CSC_KEY_PASSWORD`) y **notarización** (secretos `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`;
+  en `build.mac` activar `hardenedRuntime` y `notarize`). Además hay que quitar `CSC_IDENTITY_AUTO_DISCOVERY: "false"`
+  del workflow.
+
+### Actualizaciones automáticas (preparadas, desactivadas)
+
+`electron-updater` ya es dependencia y el código está en `electron/main.ts`, pero apagado (`AUTO_UPDATE = false`
+y `"publish": null` en `package.json`). Para activarlas falta:
+
+1. **Dónde publicar**: p. ej. GitHub Releases (`"publish": { "provider": "github" }`) o un servidor propio
+   (`"provider": "generic", "url": …`), y que el CI publique con un token (`GH_TOKEN`) en lugar de `--publish never`.
+2. **Firma**: en macOS las actualizaciones automáticas exigen app firmada y notarizada; en Windows funcionan sin
+   firma, pero SmartScreen avisará en cada versión nueva.
+3. Poner `AUTO_UPDATE = true`. El portable de Windows no se autoactualiza (limitación de electron-updater); el
+   instalador NSIS, el AppImage y el dmg sí.
+
 ## Controles
 
 Por defecto (todo se puede cambiar en **Opciones → Controles**, con teclado o mando):

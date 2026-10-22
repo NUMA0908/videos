@@ -37,6 +37,12 @@ const MIME: Record<string, string> = {
   ".woff2": "font/woff2",
 };
 
+/**
+ * Actualizaciones automáticas: preparadas (electron-updater) pero DESACTIVADAS hasta tener un sitio donde
+ * publicar las versiones (p. ej. GitHub Releases). Ver README → "Actualizaciones automáticas".
+ */
+const AUTO_UPDATE = false;
+
 let win: BrowserWindow | null = null;
 let inMatch = false;
 let allowClose = false;
@@ -185,6 +191,11 @@ if (!app.requestSingleInstanceLock()) {
 
     registerIpc();
     createWindow();
+    if (AUTO_UPDATE && app.isPackaged) {
+      void import("electron-updater")
+        .then(({ autoUpdater }) => autoUpdater.checkForUpdatesAndNotify())
+        .catch((e) => log.log("warn", `Actualizaciones: ${String(e)}`));
+    }
   });
 
   app.on("before-quit", () => saveWindowState());
