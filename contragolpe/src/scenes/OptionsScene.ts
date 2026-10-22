@@ -56,6 +56,18 @@ export class OptionsScene implements Scene {
       { label: "Dificultad de la CPU", value: CPU_LEVELS[s.cpuLevel].name, change: (d) => (s.cpuLevel = ((s.cpuLevel + d + 3) % 3) as 0 | 1 | 2) },
       { label: "Sacudida de pantalla", value: s.shake ? "Sí" : "No", change: () => (s.shake = !s.shake), hint: "Accesibilidad: desactívala si te marea." },
       { label: "Destellos", value: s.flashes ? "Sí" : "No", change: () => (s.flashes = !s.flashes), hint: "Accesibilidad: sin destellos de pantalla ni flash blanco en los golpes." },
+      { label: "Pantalla completa (F11 / Alt+Enter)", act: () => void this.app.toggleFullscreen() },
+      { label: "Iniciar en pantalla completa", value: s.startFullscreen ? "Sí" : "No", change: () => (s.startFullscreen = !s.startFullscreen) },
+      {
+        label: "Escalado por enteros",
+        value: s.pixelPerfect ? "Sí" : "No",
+        change: () => {
+          s.pixelPerfect = !s.pixelPerfect;
+          this.app.resize();
+        },
+        hint: "Solo múltiplos exactos de la resolución del juego (bordes negros, imagen más nítida).",
+      },
+      { label: "Pausar al perder el foco", value: s.pauseOnBlur ? "Sí" : "No", change: () => (s.pauseOnBlur = !s.pauseOnBlur) },
       { label: "Controles del Jugador 1", act: () => this.openControls(0) },
       { label: "Controles del Jugador 2", act: () => this.openControls(1) },
       {

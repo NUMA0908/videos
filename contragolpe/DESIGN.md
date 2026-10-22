@@ -430,6 +430,21 @@ Nota de entorno: dentro de contenedores que corren como **root**, Chromium exige
 sandbox del sistema operativo, no el `sandbox: true` del renderer). Los scripts de desarrollo y pruebas lo añaden
 solo en ese caso; un usuario normal nunca lo necesita.
 
+### Ventana, escalado y frecuencia del monitor (fase 2)
+- **Resolución lógica 960×540 (16:9)**, la misma de la versión web (el prompt sugería 1280×720 "por ejemplo";
+  cambiarla obligaría a rehacer todas las coordenadas de UI sin ganar nitidez). El lienzo se dibuja a la
+  resolución real de la ventana × `devicePixelRatio` (hasta 2×), así que se ve nítido a cualquier tamaño;
+  se escala manteniendo 16:9 con barras negras. Opción **"Escalado por enteros"**: solo múltiplos exactos.
+- **Pantalla completa**: F11 y Alt+Enter. En escritorio el proceso principal intercepta las teclas reales
+  (`before-input-event`) y las consume; el renderer también las atiende (navegador, o teclas inyectadas por
+  pruebas automáticas) sin doble disparo. Opción "Iniciar en pantalla completa". Ventana 1280×720 de inicio.
+- **Cursor**: visible en menús; en partida se oculta tras 2 s sin mover el ratón.
+- **Vsync y monitores rápidos**: el render va a la frecuencia del monitor (requestAnimationFrame con vsync) y
+  la simulación sigue con el acumulador de paso fijo. Tests con monitores simulados de 30–240 Hz (y jitter):
+  siempre 600 ticks en 10 s, sin doble velocidad. Un parón largo no provoca una avalancha de ticks (máx. 5 por frame).
+- **Foco**: al perderlo, la partida se pausa (opción "Pausar al perder el foco") y el volumen baja al 15 %;
+  `backgroundThrottling: false` para que el juego y el audio no se degraden en segundo plano.
+
 ## 19. Frame data completa
 
 Columnas "Bloqueo", "Hit" y "CH" = ventaja en frames si el primer frame activo conecta.

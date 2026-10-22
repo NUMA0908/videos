@@ -7,4 +7,6 @@ export interface Scene {
   render(ctx: CanvasRenderingContext2D): void;
   enter?(): void;
   exit?(): void;
+  /** La ventana perdió el foco (pausa automática). */
+  onBlur?(): void;
 }

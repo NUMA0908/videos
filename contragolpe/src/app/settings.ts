@@ -13,6 +13,10 @@ export interface Settings {
   shake: boolean;
   flashes: boolean;
   cpuLevel: CpuLevel;
+  /** Pantalla y ventana. */
+  startFullscreen: boolean;
+  pixelPerfect: boolean;
+  pauseOnBlur: boolean;
   keys: [KeyBindings, KeyBindings];
   pads: [PadBindings, PadBindings];
 }
@@ -28,6 +32,9 @@ export function defaultSettings(): Settings {
     shake: true,
     flashes: true,
     cpuLevel: 1,
+    startFullscreen: false,
+    pixelPerfect: false,
+    pauseOnBlur: true,
     keys: structuredClone(DEFAULT_KEYS),
     pads: [structuredClone(DEFAULT_PAD), structuredClone(DEFAULT_PAD)],
   };

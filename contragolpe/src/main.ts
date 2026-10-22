@@ -1,4 +1,5 @@
 import { App } from "./app/App";
+import { desktop } from "./app/desktop";
 import { FightScene } from "./scenes/FightScene";
 import { GalleryScene } from "./scenes/GalleryScene";
 import { nav } from "./scenes/nav";
@@ -27,6 +28,7 @@ else if (mode === "versus") {
   nav.match(app, { mode: "training", chars: [params.get("p1") ?? "rayo", params.get("p2") ?? "rayo"], stage: params.get("esc") ?? "muelle", p2: "dummy" });
 } else nav.title(app);
 app.start();
+if (app.settings.startFullscreen && desktop) void desktop.setFullscreen(true);
 canvas.focus();
 
 // Acceso para pruebas automatizadas y depuración desde la consola.

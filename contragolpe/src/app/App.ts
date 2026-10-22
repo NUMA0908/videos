@@ -3,6 +3,7 @@ import { InputManager } from "../input/InputManager";
 import { fitCanvas } from "../render/renderer";
 import { VIEW_H, VIEW_W } from "../render/view";
 import type { Scene } from "../scenes/Scene";
+import { desktop } from "./desktop";
 import { FixedLoop } from "./loop";
 import { loadSettings, saveSettings, type Settings } from "./settings";
 
@@ -18,6 +19,32 @@ export class App {
   time = 0;
   private scale = 1;
   showFps = false;
+  private mouseIdle = 0;
+  focused = true;
+
+  resize(): void {
+    this.scale = fitCanvas(this.canvas, this.settings.pixelPerfect);
+  }
+
+  async toggleFullscreen(): Promise<void> {
+    if (desktop) {
+      await desktop.toggleFullscreen();
+      return;
+    }
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen();
+    } catch {
+      // El navegador puede negarlo (p. ej. sin gesto del usuario): no pasa nada.
+    }
+  }
+
+  private onFocus(focused: boolean): void {
+    if (this.focused === focused) return;
+    this.focused = focused;
+    this.audio.duck(!focused);
+    if (!focused && this.settings.pauseOnBlur) this.scene?.onBlur?.();
+  }
 
   constructor(readonly canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext("2d", { alpha: false });
@@ -37,9 +64,25 @@ export class App {
     };
     window.addEventListener("keydown", unlock);
     window.addEventListener("pointerdown", unlock);
-    const resize = () => (this.scale = fitCanvas(canvas));
-    window.addEventListener("resize", resize);
-    resize();
+    window.addEventListener("resize", () => this.resize());
+    this.resize();
+    // F11 y Alt+Enter alternan pantalla completa. En escritorio el proceso principal intercepta las teclas reales
+    // antes (y las consume), así que esto solo actúa en el navegador o con teclas inyectadas por pruebas.
+    window.addEventListener("keydown", (e) => {
+      if ((e.key === "Enter" && e.altKey) || e.code === "F11") {
+        e.preventDefault();
+        void this.toggleFullscreen();
+      }
+    });
+    // Cursor: visible en menús; en partida se oculta tras 2 s sin mover el ratón.
+    window.addEventListener("mousemove", () => {
+      this.mouseIdle = 0;
+      this.canvas.style.cursor = "default";
+    });
+    // Perder el foco: pausa (opcional) y baja el volumen.
+    window.addEventListener("blur", () => this.onFocus(false));
+    window.addEventListener("focus", () => this.onFocus(true));
+    desktop?.onFocusChange?.((focused) => this.onFocus(focused));
   }
 
   setScene(scene: Scene): void {
@@ -61,6 +104,9 @@ export class App {
   private tickInner(): void {
     this.time += 1 / 60;
     this.input.poll();
+    const gameplay = this.scene?.kind === "match" || this.scene?.kind === "fight" || this.scene?.kind === "trial";
+    if (++this.mouseIdle === 120 && gameplay) this.canvas.style.cursor = "none";
+    if (!gameplay && this.canvas.style.cursor === "none") this.canvas.style.cursor = "default";
     if (this.input.anyPadPressed()) this.audio.unlock();
     if (this.input.keyPressed("F3")) this.showFps = !this.showFps;
     this.scene?.update();

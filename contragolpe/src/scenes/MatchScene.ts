@@ -132,6 +132,13 @@ export class MatchScene implements Scene {
     this.fight.enter();
   }
 
+  onBlur(): void {
+    if (this.pauseOpen || this.splash > 0 || this.fight.state.round.phase === "over") return;
+    this.pauseOpen = true;
+    this.pauseSel = 0;
+    this.fight.paused = true;
+  }
+
   exit(): void {
     this.fight.exit();
   }

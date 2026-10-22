@@ -11,6 +11,11 @@ const api = {
   setFullscreen: (on: boolean): Promise<boolean> => ipcRenderer.invoke("window:set-fullscreen", !!on),
   isFullscreen: (): Promise<boolean> => ipcRenderer.invoke("window:is-fullscreen"),
   quit: (): Promise<void> => ipcRenderer.invoke("app:quit"),
+  onFocusChange: (cb: (focused: boolean) => void): (() => void) => {
+    const h = (_e: unknown, focused: unknown) => cb(focused === true);
+    ipcRenderer.on("window:focus", h);
+    return () => ipcRenderer.removeListener("window:focus", h);
+  },
 };
 
 contextBridge.exposeInMainWorld("contragolpeDesktop", api);

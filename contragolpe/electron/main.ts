@@ -55,6 +55,16 @@ function createWindow(): void {
     },
   });
   win.once("ready-to-show", () => win?.show());
+  // F11 y Alt+Enter alternan pantalla completa (también en partida, sin pasar por el juego).
+  win.webContents.on("before-input-event", (ev, input) => {
+    if (input.type !== "keyDown") return;
+    if (input.key === "F11" || (input.key === "Enter" && input.alt)) {
+      ev.preventDefault();
+      win?.setFullScreen(!win.isFullScreen());
+    }
+  });
+  win.on("blur", () => win?.webContents.send("window:focus", false));
+  win.on("focus", () => win?.webContents.send("window:focus", true));
   if (DEV_SERVER) void win.loadURL(DEV_SERVER);
   else void win.loadURL("app://game/index.html");
   win.on("closed", () => (win = null));

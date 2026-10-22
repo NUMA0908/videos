@@ -96,6 +96,12 @@ export class AudioEngine {
     this.musicBus.gain.setTargetAtTime(music * 0.55, this.ctx.currentTime, 0.05);
   }
 
+  /** Bajar el volumen (ventana sin foco) o recuperarlo. */
+  duck(on: boolean): void {
+    if (!this.ctx) return;
+    this.master.gain.setTargetAtTime(on ? 0.15 : 0.9, this.ctx.currentTime, 0.08);
+  }
+
   playMusic(theme: string | null): void {
     this.pendingTheme = theme;
     if (!this.music) return;

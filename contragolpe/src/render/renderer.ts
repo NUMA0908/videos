@@ -32,8 +32,10 @@ export interface RenderOptions {
 export const NO_FX: FighterFx = { flash: 0, jitter: 0, glow: null, glowAlpha: 0 };
 
 /** Ajusta el canvas a la ventana manteniendo 16:9 y la nitidez en pantallas HiDPI. Devuelve la escala base. */
-export function fitCanvas(canvas: HTMLCanvasElement): number {
-  const scale = Math.min(window.innerWidth / VIEW_W, window.innerHeight / VIEW_H);
+export function fitCanvas(canvas: HTMLCanvasElement, integer = false): number {
+  let scale = Math.min(window.innerWidth / VIEW_W, window.innerHeight / VIEW_H);
+  // Escalado por enteros ("pixel perfect"): solo múltiplos exactos de la resolución lógica.
+  if (integer && scale >= 1) scale = Math.floor(scale);
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   canvas.style.width = `${Math.floor(VIEW_W * scale)}px`;
   canvas.style.height = `${Math.floor(VIEW_H * scale)}px`;
