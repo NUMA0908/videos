@@ -61,3 +61,8 @@ npm run lint                # eslint + tsc
 
 Si no se puede descargar el navegador de Remotion (sandbox/CI sin acceso a remotion.media),
 usa un Chromium local: `REMOTION_CHROMIUM=/ruta/a/chromium npm run render`.
+
+## Otros proyectos en el repo
+
+- `contragolpe/`: juego de peleas 2D independiente (Vite + TypeScript). Tiene su propio `package.json` y
+  su propio `contragolpe/CLAUDE.md`; las reglas de Remotion de arriba no aplican ahí.
