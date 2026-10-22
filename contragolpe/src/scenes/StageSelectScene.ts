@@ -27,6 +27,7 @@ function thumbnail(id: string): HTMLCanvasElement {
 }
 
 export class StageSelectScene implements Scene {
+  readonly kind = "stage";
   private sel = 0;
   constructor(readonly app: App, readonly setup: Omit<MatchSetup, "stage">) {}
 

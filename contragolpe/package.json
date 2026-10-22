@@ -12,13 +12,21 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "framedata": "tsx scripts/framedata.ts",
-    "sim": "tsx scripts/balance.ts"
+    "sim": "tsx scripts/balance.ts",
+    "electron:compile": "node scripts/electron-compile.mjs",
+    "app:dev": "node scripts/electron-dev.mjs"
   },
   "devDependencies": {
     "@types/node": "22.19.1",
+    "electron": "44.5.1",
+    "electron-builder": "26.17.0",
     "tsx": "4.23.15",
     "typescript": "5.9.3",
     "vite": "8.3.5",
     "vitest": "5.0.5"
-  }
+  },
+  "dependencies": {
+    "electron-updater": "6.8.10"
+  },
+  "main": "dist-electron/main.js"
 }

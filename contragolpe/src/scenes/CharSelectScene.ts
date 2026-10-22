@@ -18,6 +18,7 @@ const MODE_TITLE: Record<SelectMode, string> = {
 };
 
 export class CharSelectScene implements Scene {
+  readonly kind = "select";
   private cursor: [number, number] = [0, 1];
   private locked: [boolean, boolean] = [false, false];
   /** Modos de un jugador: 0 = eligiendo el propio, 1 = eligiendo el rival, 2 = dificultad (arcade). */

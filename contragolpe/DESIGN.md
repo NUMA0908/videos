@@ -391,7 +391,46 @@ simulaciones masivas usan `stepInPlace` sin clonar (~600 partidos completos en ~
 - [x] Teclado y mando; controles remapeables; opciones de accesibilidad.
 - [x] DESIGN.md con decisiones y toda la frame data; README con cómo jugar y lista de movimientos.
 
-## 17. Frame data completa
+## 18. App de escritorio (Electron)
+
+### Decisión: Electron + electron-builder
+- **Electron trae su propio Chromium**: Gamepad API, Web Audio y Canvas 2D se comportan igual en todas las
+  máquinas (el juego ya es web y casi no cambia).
+- **Tauri** (alternativa considerada, no adoptada): instaladores mucho más pequeños y menos memoria, pero usa el
+  webview del sistema (WebView2 en Windows, WebKitGTK en Linux, WKWebView en macOS); el soporte del Gamepad API y
+  la latencia de audio varían entre ellos, y para un juego de peleas eso es un riesgo mayor que el tamaño.
+- Versiones fijadas: Electron 44.5.1, electron-builder 26.17.0, electron-updater 6.8.10.
+
+### Estructura
+```
+electron/main.ts      proceso principal: ventana, protocolo app://, seguridad, IPC, ciclo de vida
+electron/preload.ts   puente mínimo (contextBridge) → window.contragolpeDesktop
+electron/security.ts  CSP y lista de orígenes permitidos (con tests)
+scripts/electron-*.mjs compilación (tsc → dist-electron/, CommonJS) y modo desarrollo
+```
+- `npm run app:dev`: servidor Vite con recarga en caliente + ventana Electron apuntando a él.
+- En producción el juego se sirve desde `dist/` con un **protocolo propio `app://game/`** (más seguro que
+  `file://`: origen propio, rutas confinadas a `dist/`, tipos MIME explícitos y cabeceras de seguridad).
+
+### Seguridad (revisión punto por punto)
+| Requisito | Cómo se cumple |
+|---|---|
+| `contextIsolation: true` | `webPreferences` de la ventana |
+| `nodeIntegration: false` | `webPreferences`; verificado: `window.require` y `window.process` no existen en el juego |
+| `sandbox: true` | renderer en sandbox; el preload solo usa el módulo `electron` (requisito del sandbox) |
+| Preload mínimo | expone solo funciones concretas (`toggleFullscreen`, `setFullscreen`, `isFullscreen`, `quit`, y en fases siguientes configuración, logs y foco); **nunca `ipcRenderer`**. El proceso principal valida los tipos de cada argumento |
+| CSP estricta | `<meta>` inyectada en el build y además **cabecera HTTP** en cada respuesta de `app://`: `default-src 'self'`, sin `unsafe-eval`, sin orígenes remotos, `object-src 'none'`. (Estilos `unsafe-inline` solo por el `<style>` del HTML; no hay scripts en línea) |
+| Sin navegación externa | `will-navigate`/`will-redirect` bloquean todo lo que no sea `app://game` (o el servidor de desarrollo) |
+| Sin ventanas nuevas | `setWindowOpenHandler → deny`; `<webview>` bloqueado |
+| Permisos del navegador | todos denegados salvo pantalla completa |
+| Un solo ejemplar | `requestSingleInstanceLock`; un segundo arranque enfoca la ventana existente |
+| Sin menú del navegador | `Menu.setApplicationMenu(null)` |
+
+Nota de entorno: dentro de contenedores que corren como **root**, Chromium exige `--no-sandbox` (desactiva el
+sandbox del sistema operativo, no el `sandbox: true` del renderer). Los scripts de desarrollo y pruebas lo añaden
+solo en ese caso; un usuario normal nunca lo necesita.
+
+## 19. Frame data completa
 
 Columnas "Bloqueo", "Hit" y "CH" = ventaja en frames si el primer frame activo conecta.
 "—" = no aplica (derriba o es un agarre). "altura" = ataques en salto: la ventaja depende de lo cerca

@@ -45,6 +45,7 @@ const SIMPLE_SFX: Partial<Record<SimEvent["type"], SfxName>> = {
 
 /** Escena de combate: une simulación, entrada, render, efectos y audio. */
 export class FightScene implements Scene {
+  readonly kind = "fight";
   /** null = dispositivos del jugador correspondiente. */
   inputs: [InputSource | null, InputSource | null] = [null, null];
   /** Se llama tras cada tick (modos de juego que observan los eventos). */

@@ -21,6 +21,7 @@ const PARRY_ORDER: ParryDifficulty[] = ["easy", "normal", "hardcore"];
 const pct = (v: number) => `${Math.round(v * 100)} %`;
 
 export class OptionsScene implements Scene {
+  readonly kind = "options";
   private sel = 0;
   private controlsFor: 0 | 1 | null = null;
   private ctrlSel = 0;

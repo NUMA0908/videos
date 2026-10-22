@@ -8,6 +8,7 @@ import type { Scene } from "./Scene";
 
 /** Herramienta de arte: muestra todas las poses en cuadrícula (?modo=galeria&pj=rayo&pag=0). */
 export class GalleryScene implements Scene {
+  readonly kind = "gallery";
   private page = 0;
   private charIdx = 0;
   constructor(readonly app: App, charId: string, page: number) {

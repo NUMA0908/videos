@@ -77,6 +77,7 @@ export function drawMoveList(ctx: CanvasRenderingContext2D, charId: string, with
 }
 
 export class MoveListScene implements Scene {
+  readonly kind = "movelist";
   private idx: number;
   constructor(
     readonly app: App,

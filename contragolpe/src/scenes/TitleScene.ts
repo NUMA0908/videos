@@ -16,6 +16,7 @@ const ITEMS: (MenuItem & { go: (app: App) => void })[] = [
 ];
 
 export class TitleScene implements Scene {
+  readonly kind = "title";
   private sel: number;
   private t = 0;
   constructor(readonly app: App, index = 0) {

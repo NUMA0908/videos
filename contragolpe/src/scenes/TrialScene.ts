@@ -13,6 +13,7 @@ type Phase = "intro" | "waiting" | "running" | "done" | "complete";
 
 /** Modo Trial de parry: lecciones guiadas con un muñeco que ataca en patrones. */
 export class TrialScene implements Scene {
+  readonly kind = "trial";
   private fight: FightScene;
   private lesson = 0;
   private successes = 0;

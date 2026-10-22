@@ -73,6 +73,7 @@ class AdvantageMeter {
 }
 
 export class MatchScene implements Scene {
+  readonly kind = "match";
   readonly fight: FightScene;
   private cpu: Cpu | null = null;
   readonly dummy: Dummy | null = null;
