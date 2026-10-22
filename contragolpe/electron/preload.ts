@@ -16,6 +16,11 @@ const api = {
     ipcRenderer.on("window:focus", h);
     return () => ipcRenderer.removeListener("window:focus", h);
   },
+  loadSettings: (): Promise<string | null> => ipcRenderer.invoke("settings:load"),
+  saveSettings: (json: string): Promise<boolean> => ipcRenderer.invoke("settings:save", String(json)),
+  setInMatch: (on: boolean): void => ipcRenderer.send("app:in-match", on === true),
+  log: (level: "info" | "warn" | "error", message: string): void => ipcRenderer.send("log", level, String(message)),
+  reportMetric: (name: string, value: number): void => ipcRenderer.send("metric", String(name), Number(value)),
 };
 
 contextBridge.exposeInMainWorld("contragolpeDesktop", api);

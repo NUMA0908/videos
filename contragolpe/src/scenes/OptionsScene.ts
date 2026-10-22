@@ -68,6 +68,7 @@ export class OptionsScene implements Scene {
         hint: "Solo múltiplos exactos de la resolución del juego (bordes negros, imagen más nítida).",
       },
       { label: "Pausar al perder el foco", value: s.pauseOnBlur ? "Sí" : "No", change: () => (s.pauseOnBlur = !s.pauseOnBlur) },
+      { label: "Confirmar al salir en partida", value: s.confirmQuit ? "Sí" : "No", change: () => (s.confirmQuit = !s.confirmQuit), hint: "App de escritorio: pregunta antes de cerrar la ventana en mitad de un combate." },
       { label: "Controles del Jugador 1", act: () => this.openControls(0) },
       { label: "Controles del Jugador 2", act: () => this.openControls(1) },
       {

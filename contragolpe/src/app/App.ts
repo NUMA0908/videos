@@ -46,11 +46,14 @@ export class App {
     if (!focused && this.settings.pauseOnBlur) this.scene?.onBlur?.();
   }
 
-  constructor(readonly canvas: HTMLCanvasElement) {
+  constructor(
+    readonly canvas: HTMLCanvasElement,
+    initial: Settings | null = null,
+  ) {
     const ctx = canvas.getContext("2d", { alpha: false });
     if (!ctx) throw new Error("Canvas 2D no disponible");
     this.ctx = ctx;
-    this.settings = loadSettings();
+    this.settings = initial ?? loadSettings();
     this.input = new InputManager(this.settings.keys, this.settings.pads);
     this.input.attach(window);
     this.loop = new FixedLoop(

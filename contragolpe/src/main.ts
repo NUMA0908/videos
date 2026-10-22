@@ -5,8 +5,15 @@ import { GalleryScene } from "./scenes/GalleryScene";
 import { nav } from "./scenes/nav";
 import { Cpu, CPU_LEVELS } from "./ai/cpu";
 
+import { loadDesktopSettings } from "./app/settings";
+
+// Errores del juego → registro de la app de escritorio (en el navegador, solo la consola).
+window.addEventListener("error", (e) => desktop?.log?.("error", `${e.message} @ ${e.filename}:${e.lineno}`));
+window.addEventListener("unhandledrejection", (e) => desktop?.log?.("error", `Promesa rechazada: ${String(e.reason)}`));
+
+const bootStart = performance.now();
 const canvas = document.getElementById("game") as HTMLCanvasElement;
-const app = new App(canvas);
+const app = new App(canvas, await loadDesktopSettings());
 const params = new URLSearchParams(location.search);
 
 // Atajos de desarrollo: ?modo=galeria | trial | versus&p1=..&p2=..&esc=..
@@ -29,6 +36,8 @@ else if (mode === "versus") {
 } else nav.title(app);
 app.start();
 if (app.settings.startFullscreen && desktop) void desktop.setFullscreen(true);
+document.getElementById("loading")?.remove();
+requestAnimationFrame(() => desktop?.reportMetric?.("arranque_renderer_ms", Math.round(performance.now() - bootStart)));
 canvas.focus();
 
 // Acceso para pruebas automatizadas y depuración desde la consola.

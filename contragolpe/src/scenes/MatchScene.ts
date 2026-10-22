@@ -1,4 +1,5 @@
 import type { App } from "../app/App";
+import { desktop } from "../app/desktop";
 import { Cpu, CPU_LEVELS } from "../ai/cpu";
 import { Dummy, DUMMY_MODES } from "../ai/dummy";
 import { getChar, getMove } from "../data/characters";
@@ -130,6 +131,7 @@ export class MatchScene implements Scene {
 
   enter(): void {
     this.fight.enter();
+    desktop?.setInMatch?.(this.app.settings.confirmQuit);
   }
 
   onBlur(): void {
@@ -141,6 +143,7 @@ export class MatchScene implements Scene {
 
   exit(): void {
     this.fight.exit();
+    desktop?.setInMatch?.(false);
   }
 
   private dummyInput(s: GameState): number {
@@ -349,6 +352,7 @@ export class MatchScene implements Scene {
   private updateResults(): void {
     if (!this.resultsShown) {
       this.resultsShown = true;
+      desktop?.setInMatch?.(false);
       this.resultSel = 0;
     }
     const m = this.app.input.menu();

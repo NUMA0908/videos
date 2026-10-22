@@ -1,4 +1,5 @@
 import type { App } from "../app/App";
+import { desktop } from "../app/desktop";
 import { CHARACTERS } from "../data/characters";
 import { FONT_IMPACT, VIEW_H, VIEW_W } from "../render/view";
 import { drawBackdrop, drawCharacter, drawFooter, drawMenu, drawText, UI, type MenuItem } from "../ui/ui";
@@ -13,6 +14,7 @@ const ITEMS: (MenuItem & { go: (app: App) => void })[] = [
   { label: "Trial de parry", hint: "Aprende el parry paso a paso con lecciones guiadas.", go: (a) => nav.select(a, "trial") },
   { label: "Lista de movimientos", hint: "Todos los golpes de cada personaje.", go: (a) => nav.moveList(a, "rayo", () => nav.title(a, 5)) },
   { label: "Opciones", hint: "Controles, volumen, dificultad del parry y accesibilidad.", go: (a) => nav.options(a, () => nav.title(a, 6)) },
+  ...(desktop ? [{ label: "Salir del juego", hint: "Cierra CONTRAGOLPE.", go: () => void desktop?.quit() }] : []),
 ];
 
 export class TitleScene implements Scene {

@@ -445,6 +445,27 @@ solo en ese caso; un usuario normal nunca lo necesita.
 - **Foco**: al perderlo, la partida se pausa (opción "Pausar al perder el foco") y el volumen baja al 15 %;
   `backgroundThrottling: false` para que el juego y el audio no se degraden en segundo plano.
 
+### Guardado, registro y ciclo de vida (fase 3)
+- **Configuración** en `userData/settings.json` (Windows: `%APPDATA%/CONTRAGOLPE`, Linux: `~/.config/CONTRAGOLPE`,
+  macOS: `~/Library/Application Support/CONTRAGOLPE`) con sobre `{ version, savedAt, settings }`.
+  - Escritura **atómica**: temporal + `fsync` + `rename` (un corte de luz nunca deja el archivo a medias).
+  - **Archivo dañado** (JSON inválido o estructura sin sentido): se usan los valores por defecto, se conserva una
+    copia `settings.corrupt-<fecha>.json` y se anota en el registro.
+  - **Versión de esquema** (actual: 2) con migración: v1 era el objeto de ajustes sin sobre (lo que guardaba la web
+    en `localStorage`); campos renombrados se migran. Las versiones futuras se leen campo a campo.
+  - El juego **valida** cada campo al cargar (`parseSettings`): tipos incorrectos o desconocidos → valor por defecto.
+  - En el navegador (`npm run dev`) se sigue usando `localStorage`.
+- **Estado de la ventana** (`window-state.json`): tamaño, posición, maximizada y pantalla completa; si la posición
+  guardada ya no cae en ninguna pantalla, se centra.
+- **Registro** en `userData/logs/main.log` con rotación por tamaño (1 MB, 3 archivos): arranque, versiones,
+  errores del proceso principal y del juego (`window.onerror`, promesas rechazadas, con límite de 200 por minuto),
+  caídas del renderer, navegación bloqueada y métricas de rendimiento.
+- **Cierre**: la configuración se guarda en cada cambio y el estado de la ventana al cerrar. Si hay un combate en
+  curso pide confirmación (opción "Confirmar al salir en partida"). "Salir del juego" en el menú principal.
+- **Caída del renderer** (`render-process-gone`): mensaje claro con el motivo y la ruta del registro, y botones
+  "Reiniciar el juego" / "Salir".
+- Variable `CONTRAGOLPE_USER_DATA` para aislar la carpeta de datos en pruebas automáticas.
+
 ## 19. Frame data completa
 
 Columnas "Bloqueo", "Hit" y "CH" = ventaja en frames si el primer frame activo conecta.
