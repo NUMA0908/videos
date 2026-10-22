@@ -32,8 +32,33 @@ export const ACTION_BIT: Record<Action, number> = {
 
 /** Teclas (KeyboardEvent.code) por acción. */
 export type KeyBindings = Record<Action, string[]>;
-/** Botones del gamepad (mapeo estándar W3C) por acción. */
-export type PadBindings = Record<Action, number[]>;
+
+/**
+ * Acciones del mando: las del teclado más tres atajos de un botón.
+ * Agarre = LP+LK y Súper = HP+HK son exactamente las combinaciones que ya acepta la simulación;
+ * Pausa no llega a la simulación (solo menús).
+ */
+export type PadAction = Action | "THROW" | "SUPER" | "PAUSE";
+export const PAD_ACTIONS: PadAction[] = ["up", "down", "left", "right", "LP", "HP", "LK", "HK", "THROW", "PARRY", "SUPER", "SP", "PAUSE"];
+export const PAD_BUTTON_ACTIONS: PadAction[] = PAD_ACTIONS.filter((a) => a !== "up" && a !== "down" && a !== "left" && a !== "right");
+
+export const PAD_ACTION_LABEL: Record<PadAction, string> = {
+  ...ACTION_LABEL,
+  THROW: "Agarre (LP+LK)",
+  SUPER: "Súper (HP+HK)",
+  SP: "Especial de un botón (SP)",
+  PAUSE: "Pausa",
+};
+
+export const PAD_ACTION_BIT: Record<PadAction, number> = {
+  ...ACTION_BIT,
+  THROW: Btn.LP | Btn.LK,
+  SUPER: Btn.HP | Btn.HK,
+  PAUSE: 0,
+};
+
+/** Entradas del mando por acción (códigos de `padCodes.ts`: botón, eje o hat). */
+export type PadBindings = Record<PadAction, number[]>;
 
 export const DEFAULT_KEYS: [KeyBindings, KeyBindings] = [
   {
@@ -62,7 +87,11 @@ export const DEFAULT_KEYS: [KeyBindings, KeyBindings] = [
   },
 ];
 
-/** Mapeo estándar: X=LP, Y=HP, A=LK, B=HK, RB=Parry, LB=Especial simple, cruceta = dirección. */
+/**
+ * Diseño por defecto con mapeo estándar (remapeable):
+ *   X/□ = LP · Y/△ = HP · A/✕ = LK · B/○ = HK · LB/L1 = agarre · RB/R1 = parry · RT/R2 = súper
+ *   LT/L2 = especial de un botón (solo con "inputs simplificados") · Start/Options = pausa · cruceta = dirección.
+ */
 export const DEFAULT_PAD: PadBindings = {
   up: [12],
   down: [13],
@@ -72,18 +101,32 @@ export const DEFAULT_PAD: PadBindings = {
   HP: [3],
   LK: [0],
   HK: [1],
+  THROW: [4],
   PARRY: [5],
-  SP: [4],
+  SUPER: [7],
+  SP: [6],
+  PAUSE: [9],
 };
 
-/** Gatillos como macros: LT = agarre (LP+LK), RT = súper (HP+HK). */
-export const PAD_MACROS: { button: number; mask: number }[] = [
-  { button: 6, mask: Btn.LP | Btn.LK },
-  { button: 7, mask: Btn.HP | Btn.HK },
-];
-
-export const PAD_START = 9;
-export const PAD_BACK = 8;
+/**
+ * Mando sin mapeo estándar: nada asignado (se configura con la guía paso a paso). Los ejes 0/1 se leen
+ * siempre como stick, así que un mando genérico ya se mueve antes de configurarlo.
+ */
+export const DEFAULT_RAW_PAD: PadBindings = {
+  up: [],
+  down: [],
+  left: [],
+  right: [],
+  LP: [],
+  HP: [],
+  LK: [],
+  HK: [],
+  THROW: [],
+  PARRY: [],
+  SUPER: [],
+  SP: [],
+  PAUSE: [],
+};
 
 const KEY_NAMES: Record<string, string> = {
   ArrowUp: "↑",
@@ -104,13 +147,4 @@ export function keyName(code: string): string {
   if (code.startsWith("Digit")) return code.slice(5);
   if (code.startsWith("Numpad")) return `Num ${code.slice(6)}`;
   return code;
-}
-
-const PAD_NAMES: Record<number, string> = {
-  0: "A", 1: "B", 2: "X", 3: "Y", 4: "LB", 5: "RB", 6: "LT", 7: "RT", 8: "Select", 9: "Start",
-  10: "L3", 11: "R3", 12: "Cruceta ↑", 13: "Cruceta ↓", 14: "Cruceta ←", 15: "Cruceta →",
-};
-
-export function padName(b: number): string {
-  return PAD_NAMES[b] ?? `Botón ${b}`;
 }

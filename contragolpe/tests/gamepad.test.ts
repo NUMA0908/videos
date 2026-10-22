@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_PAD } from "../src/input/bindings";
 import { PadButton, stickDirection } from "../src/input/gamepad";
 import { DEFAULT_PAD_TUNING, sanitizePadTuning } from "../src/input/padTuning";
 import { resolveSOCD } from "../src/input/socd";
@@ -97,7 +98,8 @@ describe("mapeo estándar, remapeo y gatillos", () => {
       [PadButton.A, LK],
       [PadButton.B, 128],
       [PadButton.RB, PARRY],
-      [PadButton.LB, SP],
+      [PadButton.LB, LP | LK],
+      [PadButton.LT, SP],
     ];
     for (const [b, bit] of cases) {
       pad.releaseAll().press(b);
@@ -109,9 +111,7 @@ describe("mapeo estándar, remapeo y gatillos", () => {
 
   it("el remapeo cambia qué botón da cada acción", () => {
     const pad = new FakePad();
-    const { input } = makeInput([pad]);
-    input.pads[0].LP = [PadButton.A];
-    input.pads[0].LK = [PadButton.X];
+    const { input } = makeInput([pad], { xbox: { ...structuredClone(DEFAULT_PAD), LP: [PadButton.A], LK: [PadButton.X] } });
     pad.press(PadButton.A);
     expect(tick(input)[0]).toBe(LP);
     pad.releaseAll().press(PadButton.X);

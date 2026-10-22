@@ -113,17 +113,23 @@ y `"publish": null` en `package.json`). Para activarlas falta:
 
 ## Controles
 
-Por defecto (todo se puede cambiar en **Opciones → Controles**, con teclado o mando):
+Por defecto (teclado en **Opciones → Teclado del Jugador 1/2**; mando en **Opciones → Botones del mando**):
 
-| Acción | Jugador 1 | Jugador 2 | Mando |
-|---|---|---|---|
-| Moverse / saltar / agacharse | A D / W / S | ← → / ↑ / ↓ | Cruceta o stick izquierdo |
-| Puño ligero (LP) / fuerte (HP) | J / K | Num 4 / Num 5 | X / Y |
-| Patada ligera (LK) / fuerte (HK) | U / I | Num 7 / Num 8 | A / B |
-| Parry | L | Num 6 | RB |
-| Especial simple (SP) | O | Num 9 | LB |
-| Agarre (LP+LK) / Súper (HP+HK) | J+U / K+I | | LT / RT |
-| Pausa | Esc / Enter / P | | Start |
+| Acción | Jugador 1 | Jugador 2 | Mando Xbox | Mando PlayStation |
+|---|---|---|---|---|
+| Moverse / saltar / agacharse | A D / W / S | ← → / ↑ / ↓ | Cruceta o stick izquierdo | Cruceta o stick izquierdo |
+| Puño ligero (LP) / fuerte (HP) | J / K | Num 4 / Num 5 | X / Y | □ / △ |
+| Patada ligera (LK) / fuerte (HK) | U / I | Num 7 / Num 8 | A / B | ✕ / ○ |
+| Agarre (LP+LK) | J+U | Num 4+Num 7 | LB | L1 |
+| Parry | L | Num 6 | RB | R1 |
+| Súper (HP+HK, o ↓↘→↓↘→+P) | K+I | Num 5+Num 8 | RT | R2 |
+| Especial de un botón (SP, con "inputs simplificados") | O | Num 9 | LT | L2 |
+| Pausa | Esc / Enter / P | | Menu (Start) | Options |
+| Menús: aceptar / volver | Enter, J / Esc, K | | A / B | ✕ / ○ |
+
+El mando también admite palancas arcade y mandos sin mapeo estándar: **Opciones → Botones del mando →
+Configuración guiada** pide cada botón y dirección uno por uno. Sensibilidad del stick (zona muerta,
+histéresis, diagonales) y umbral de los gatillos en **Opciones → Mando: sensibilidad y calibración**.
 
 Otras teclas: **F1** cajas y estado (debug) · **F3** FPS · en Entrenamiento: **R** reiniciar posición,
 **T** esquina, **F4** grabar al muñeco, **F5** reproducir la grabación.

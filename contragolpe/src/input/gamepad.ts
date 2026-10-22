@@ -1,4 +1,5 @@
 import { Btn } from "../sim/input";
+import { detectPadKind, profileKey, type PadKind } from "./padKind";
 import type { PadTuning } from "./padTuning";
 
 /**
@@ -111,6 +112,9 @@ export class PadReader {
   connected = false;
   id = "";
   mapping = "";
+  /** Tipo (íconos) y clave del perfil de botones. */
+  kind: PadKind = "generic";
+  profile = "generic";
   /** Botones digitales de este tick y del anterior. */
   readonly buttons: boolean[] = [];
   readonly prevButtons: boolean[] = [];
@@ -139,8 +143,12 @@ export class PadReader {
     }
     this.connected = true;
     this.pad = gp;
-    this.id = gp.id;
-    this.mapping = gp.mapping;
+    if (gp.id !== this.id || gp.mapping !== this.mapping) {
+      this.id = gp.id;
+      this.mapping = gp.mapping;
+      this.kind = detectPadKind(gp.id, gp.mapping);
+      this.profile = profileKey(gp.id, gp.mapping);
+    }
     const standard = gp.mapping === "standard";
     const n = gp.buttons.length;
     this.buttons.length = n;
@@ -158,7 +166,8 @@ export class PadReader {
     for (let i = 0; i < gp.axes.length; i++) this.axes[i] = gp.axes[i];
     this.dpadDir = standard ? dpadDirection(this.buttons) : 0;
     this.stickDir = gp.axes.length >= 2 ? stickDirection(gp.axes[0], gp.axes[1], this.stickDir, t) : 0;
-    // Cruceta y stick a la vez: se suman (el SOCD final resuelve contradicciones).
+    // Cruceta y stick a la vez: se suman (el SOCD final resuelve contradicciones). Esto es solo para mostrar:
+    // la dirección que juega sale del perfil (cruceta remapeable, hat de palancas arcade) + stick.
     this.dir = this.dpadDir | this.stickDir;
   }
 

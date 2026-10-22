@@ -435,6 +435,35 @@ cruceta y stick produce la misma secuencia de bitmasks y el mismo estado final d
   Opciones → "Mando: sensibilidad y calibración" (con vista en vivo del stick, la zona muerta, el radio de
   soltar, las fronteras de sector y los gatillos) y se guardan en `settings.padTuning` (validados al cargar).
 
+### Botones, perfiles y mandos no estándar (fase 2)
+- **Diseño por defecto** (`DEFAULT_PAD`): X/□ LP · Y/△ HP · A/✕ LK · B/○ HK · LB/L1 agarre · RB/R1 parry ·
+  RT/R2 súper · LT/L2 especial de un botón (SP) · Start/Options pausa · cruceta = direcciones.
+  - **Agarre y súper son atajos de un botón que producen LP+LK y HP+HK** en el mismo tick: exactamente lo que la
+    simulación ya aceptaba con teclado (la súper también sale con ↓↘→↓↘→+P). No se añadió ninguna regla.
+  - **SP** solo actúa con "inputs simplificados" (opción aparte, no sustituye a los motion inputs). Se puso en
+    LT porque el prompt no le asigna botón y es el único libre al alcance.
+  - Menús con mando: **el botón de abajo acepta y el de la derecha vuelve** (A/B, ✕/○), fijos aunque se
+    remapee el combate. En mandos de Nintendo con mapeo estándar el botón de abajo es "B": se respeta la
+    posición física, no la letra (decisión: un mismo gesto en todos los mandos).
+- **Entradas como números** (`padCodes.ts`) para que los perfiles sean listas de enteros en el JSON:
+  botón 0–99, eje 100+2·i (+) / 101+2·i (−), hat 200+i. El hat (cruceta de muchas palancas arcade sin mapeo
+  estándar: un eje con 8 valores en −1+k·2/7 y reposo fuera de [−1, 1]) se decodifica a 8 direcciones.
+- **Un perfil por tipo de dispositivo**: `xbox`, `playstation`, `switch`, `generic` (detectado por `Gamepad.id`:
+  fabricante 045e/054c/057e o nombre) y `raw:<id>` por modelo para los no estándar. Se guarda en
+  `settings.padProfiles`; sin perfil = diseño de fábrica. Decisión: el perfil es del tipo de mando, no del
+  jugador (dos mandos Xbox comparten diseño); "Restablecer este perfil" lo borra. El formato antiguo `pads`
+  (por jugador, con otro diseño) se descarta al cargar.
+- **Conflictos**: una entrada física pertenece a una sola acción. Al asignar un botón ocupado se
+  **intercambian** las dos acciones y se avisa ("Y era de Puño fuerte: intercambiados"); el teclado hace lo mismo
+  (antes dejaba la otra acción vacía). Si un archivo trae conflictos, la pantalla los señala.
+- **Configuración guiada** (Opciones → Botones del mando): "Presiona el botón para Puño ligero…" paso a paso
+  (direcciones primero si el mando no es estándar). `PadCapture` exige volver a reposo antes de aceptar,
+  detecta botones, ejes por desplazamiento desde su reposo (gatillos en eje que descansan en −1) y hats, y
+  aprende el reposo una vez por mando (el paso siguiente puede empezar con el eje aún movido). Un hat en
+  "arriba" cubre las cuatro direcciones. Un botón ya usado se rechaza ("ya es…: pulsa otro"). Cada paso se
+  omite a los 8 s o con Retroceso; Esc cancela sin tocar el perfil anterior.
+- Un mando no estándar sin configurar no inventa botones: solo se mueve con los ejes 0/1 (stick).
+
 ## 18. App de escritorio (Electron)
 
 ### Decisión: Electron + electron-builder

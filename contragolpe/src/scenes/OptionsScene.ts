@@ -2,9 +2,11 @@ import type { App } from "../app/App";
 import { CPU_LEVELS } from "../ai/cpu";
 import { defaultSettings } from "../app/settings";
 import { TUNING, type ParryDifficulty } from "../data/tuning";
-import { ACTION_LABEL, ACTIONS, DEFAULT_KEYS, DEFAULT_PAD, keyName, padName, type Action } from "../input/bindings";
+import { ACTION_LABEL, ACTIONS, DEFAULT_KEYS, keyName, type Action } from "../input/bindings";
+import { assignKey } from "../input/remap";
 import { VIEW_W } from "../render/view";
 import { drawBackdrop, drawFooter, drawMenu, drawPanel, drawText, drawTitle, UI, type MenuItem } from "../ui/ui";
+import { PadRemapScene } from "./PadRemapScene";
 import { PadSettingsScene } from "./PadSettingsScene";
 import type { Scene } from "./Scene";
 
@@ -27,6 +29,7 @@ export class OptionsScene implements Scene {
   private controlsFor: 0 | 1 | null = null;
   private ctrlSel = 0;
   private waiting = false;
+  private notice = "";
 
   constructor(
     readonly app: App,
@@ -84,8 +87,13 @@ export class OptionsScene implements Scene {
         act: () => this.app.setScene(new PadSettingsScene(this.app, () => this.app.setScene(this))),
         hint: "Zona muerta e histéresis del stick, diagonales y umbral de los gatillos, con vista en vivo.",
       },
-      { label: "Controles del Jugador 1", act: () => this.openControls(0) },
-      { label: "Controles del Jugador 2", act: () => this.openControls(1) },
+      {
+        label: "Botones del mando",
+        act: () => this.app.setScene(new PadRemapScene(this.app, () => this.app.setScene(this))),
+        hint: "Remapeo por tipo de mando (Xbox, PlayStation…) y configuración guiada para mandos no estándar.",
+      },
+      { label: "Teclado del Jugador 1", act: () => this.openControls(0) },
+      { label: "Teclado del Jugador 2", act: () => this.openControls(1) },
       {
         label: "Restaurar valores por defecto",
         act: () => {
@@ -93,8 +101,8 @@ export class OptionsScene implements Scene {
           Object.assign(s, d);
           this.app.input.keys = s.keys;
           this.app.input.tuning = s.padTuning;
+          this.app.input.profiles = s.padProfiles;
           this.app.resize();
-          this.app.input.pads = s.pads;
           this.app.audio.setVolumes(s.sfxVolume, s.musicVolume);
         },
       },
@@ -103,6 +111,7 @@ export class OptionsScene implements Scene {
   }
 
   private openControls(p: 0 | 1): void {
+    this.notice = "";
     this.controlsFor = p;
     this.ctrlSel = 0;
   }
@@ -150,9 +159,8 @@ export class OptionsScene implements Scene {
     if (this.ctrlSel === ACTIONS.length) {
       // Restaurar los de este jugador
       this.app.settings.keys[p] = structuredClone(DEFAULT_KEYS[p]);
-      this.app.settings.pads[p] = structuredClone(DEFAULT_PAD);
       this.app.input.keys = this.app.settings.keys;
-      this.app.input.pads = this.app.settings.pads;
+      this.notice = "Teclado restaurado";
       return;
     }
     if (this.ctrlSel === ACTIONS.length + 1) {
@@ -164,18 +172,13 @@ export class OptionsScene implements Scene {
     this.waiting = true;
     // La tecla de confirmar sigue pulsada: esperamos al siguiente evento.
     setTimeout(() => {
-      this.app.input.captureNext((code, pad) => {
+      this.app.input.captureNext((code) => {
         this.waiting = false;
-        if (code) {
-          // Quitar esa tecla de cualquier otra acción del mismo jugador para evitar conflictos.
-          for (const a of ACTIONS) this.app.settings.keys[p][a] = this.app.settings.keys[p][a].filter((c) => c !== code);
-          this.app.settings.keys[p][action] = [code];
-        } else if (pad !== null) {
-          for (const a of ACTIONS) this.app.settings.pads[p][a] = this.app.settings.pads[p][a].filter((b) => b !== pad);
-          this.app.settings.pads[p][action] = [pad];
-        }
+        if (!code) return;
+        // Conflicto: si la tecla ya era de otra acción, se intercambian (y se avisa).
+        const { swappedWith } = assignKey(this.app.settings.keys[p], action, code);
+        this.notice = swappedWith ? `${keyName(code)} era de ${ACTION_LABEL[swappedWith]}: intercambiadas` : "";
         this.app.input.keys = this.app.settings.keys;
-        this.app.input.pads = this.app.settings.pads;
         this.app.saveSettings();
       });
     }, 120);
@@ -198,19 +201,19 @@ export class OptionsScene implements Scene {
 
   private renderControls(ctx: CanvasRenderingContext2D): void {
     const p = this.controlsFor as 0 | 1;
-    drawTitle(ctx, `CONTROLES · JUGADOR ${p + 1}`, 40, 34);
+    drawTitle(ctx, `TECLADO · JUGADOR ${p + 1}`, 40, 34);
     const keys = this.app.settings.keys[p];
-    const pads = this.app.settings.pads[p];
-    const items: MenuItem[] = ACTIONS.map((a) => ({ label: ACTION_LABEL[a], value: `${keys[a].map(keyName).join(", ") || "—"}  ·  ${pads[a].map(padName).join(", ") || "—"}` }));
+    const items: MenuItem[] = ACTIONS.map((a) => ({ label: ACTION_LABEL[a], value: keys[a].map(keyName).join(", ") || "—" }));
     items.push({ label: "Restaurar controles de este jugador" }, { label: "Volver" });
     drawPanel(ctx, VIEW_W / 2 - 320, 70, 640, items.length * 34 + 22, 0.85);
     drawMenu(ctx, items, this.ctrlSel, VIEW_W / 2 - 290, 98, 580, this.app.time, 34);
     if (this.waiting) {
       drawPanel(ctx, VIEW_W / 2 - 220, 220, 440, 90, 0.95);
-      drawText(ctx, `Pulsa una tecla o botón para`, VIEW_W / 2, 248, { size: 16, align: "center" });
+      drawText(ctx, `Pulsa una tecla para`, VIEW_W / 2, 248, { size: 16, align: "center" });
       drawText(ctx, ACTION_LABEL[ACTIONS[this.ctrlSel]], VIEW_W / 2, 276, { size: 20, align: "center", bold: true, color: UI.accent });
       drawText(ctx, "(Esc cancela)", VIEW_W / 2, 298, { size: 12, align: "center", color: UI.dim });
     }
-    drawFooter(ctx, "Enter: cambiar la tecla/botón · Esc volver · Gatillos del mando: LT = agarre, RT = súper");
+    if (this.notice) drawText(ctx, this.notice, VIEW_W / 2, 486, { size: 15, align: "center", color: UI.accent });
+    drawFooter(ctx, "Enter: cambiar la tecla · Esc volver · Los botones del mando están en Opciones → Botones del mando");
   }
 }

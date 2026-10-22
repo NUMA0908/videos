@@ -1,6 +1,6 @@
-import { DEFAULT_KEYS, DEFAULT_PAD } from "../src/input/bindings";
+import { DEFAULT_KEYS } from "../src/input/bindings";
 import type { GamepadLike } from "../src/input/gamepad";
-import { InputManager } from "../src/input/InputManager";
+import { InputManager, type PadProfiles } from "../src/input/InputManager";
 
 /** Mando simulado: imita lo que devuelve `navigator.getGamepads()` para un mando. */
 export class FakePad implements GamepadLike {
@@ -61,8 +61,8 @@ export class FakeKeyboard {
 }
 
 /** InputManager con mandos simulados y teclado falso. */
-export function makeInput(pads: (FakePad | null)[] = []): { input: InputManager; kb: FakeKeyboard; pads: (FakePad | null)[] } {
-  const input = new InputManager(structuredClone(DEFAULT_KEYS), [structuredClone(DEFAULT_PAD), structuredClone(DEFAULT_PAD)], () => pads);
+export function makeInput(pads: (FakePad | null)[] = [], profiles: PadProfiles = {}): { input: InputManager; kb: FakeKeyboard; pads: (FakePad | null)[] } {
+  const input = new InputManager(structuredClone(DEFAULT_KEYS), profiles, () => pads);
   const kb = new FakeKeyboard();
   input.attach(kb as unknown as Window);
   return { input, kb, pads };
