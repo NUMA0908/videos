@@ -289,11 +289,25 @@ y usan su propio azar. Regla de oro: **el fuerte tiene que destacar sobre el lig
 - **KO**: cámara lenta (30 % durante 50 ticks: el bucle ejecuta menos ticks, la lógica de cada tick no cambia),
   zoom al derribado, destello y "K.O.".
 
-### Sonido en capas (todo sintetizado)
+### Sonido en capas
+Capas de cada golpe (las decide `FightScene` a partir del estado y de `state.events`):
+1. **Swing** al lanzar el golpe, conecte o no, en `startup − 2` (ligeros) o `startup − 3` (fuertes): el silbido
+   culmina justo al pegar. Distinto para puño ligero/fuerte, patada ligera/fuerte y especial.
+2. **Impacto** al conectar: puño (seco, "clack" agudo), patada (más grave y carnoso), especial (capa de energía
+   eléctrica), súper; bloqueo ligero/fuerte (golpe sordo); counter = campanita extra.
+3. **Voz** (opcional, solo con archivos de voz): al lanzar (12 % ligeros, 35 % fuertes, 60 % especiales, siempre
+   la súper), queja en golpes fuertes (50 %), KO y victoria. Nunca se pisan dos voces del mismo personaje.
+
+- **Variantes**: 3–4 por sonido de combate (tono, filtro y duración distintos) elegidas al azar **sin repetir la
+  anterior**, más ±3 % de tono. Menús y anuncios no varían (deben reconocerse siempre igual).
+- **Archivos propios** (`assets/audio/`, ver `ASSETS_NEEDED.md`): Vite los descubre al compilar
+  (`import.meta.glob`); si existe `sfx/<nombre>_N.ogg` se usa en lugar del sintetizado, con sus N variantes. Sin
+  archivos no se hace ninguna petición. La música `music/<tema>.ogg` sustituye al secuenciador en bucle.
+  Audio e imágenes nunca se incrustan como `data:` (la CSP no lo permite).
 - Golpe = impacto grave (seno con caída de tono) + "clack" agudo (onda cuadrada/triángulo muy corta) + ruido filtrado.
-- Bloqueo = golpe sordo y apagado; parry = campanas agudas (2 kHz) con eco; counter = campanita extra;
-  proyectil = barrido de ruido + diente de sierra ascendente; súper = barrido largo; KO = estruendo grave con eco.
-- Panorama estéreo según la posición en pantalla y ligera variación de tono aleatoria para no cansar.
+- Parry = campanas agudas (2 kHz) con eco; proyectil = barrido de ruido + diente de sierra ascendente;
+  súper = barrido largo; KO = estruendo grave con eco.
+- Panorama estéreo según la posición en pantalla.
 - Música en bucle por escenario (secuenciador propio): "muelle" con aire de merengue (güira constante),
   "azotea" synthwave, "plaza" con guitarra arpegiada, y tema de menú.
 

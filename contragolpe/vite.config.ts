@@ -13,7 +13,13 @@ function cspMeta(): Plugin {
 export default defineConfig({
   plugins: [cspMeta()],
   server: { host: true, port: 5173 },
-  build: { target: "es2022", outDir: "dist", sourcemap: false },
+  build: {
+    target: "es2022",
+    outDir: "dist",
+    sourcemap: false,
+    // Audio e imágenes de `assets/` siempre como archivo: la CSP (connect-src 'self') no deja cargar data: URIs con fetch.
+    assetsInlineLimit: (file) => (/\.(ogg|mp3|wav|png|webp)$/i.test(file) ? false : undefined),
+  },
   test: {
     include: ["tests/**/*.test.ts"],
     environment: "node",

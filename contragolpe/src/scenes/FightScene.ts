@@ -8,6 +8,21 @@ import { allProjectileBoxes } from "../sim/projectiles";
 import { createMatch } from "../sim/state";
 import { stepInPlace } from "../sim/step";
 import type { FighterState, GameState, MatchConfig, Side, SimEvent } from "../sim/types";
+
+/** Sonido de impacto según lo que golpea (capa 2). */
+function hitSfx(e: SimEvent, s: GameState): SfxName {
+  if (e.strength === "super") return "hitSuper";
+  const info = strikeInfo(s.fighters[e.side].char, e.move);
+  const heavy = e.strength === "heavy";
+  if (info.special) return "hitSpecial";
+  if (info.limb === "kick") return heavy ? "hitKickH" : "hitKickL";
+  return heavy ? "hitPunchH" : "hitPunchL";
+}
+
+/** Frame en que suena el swing: un poco antes del primer frame activo, para que el silbido culmine al pegar. */
+export function swingFrame(startup: number, heavy: boolean): number {
+  return Math.max(1, startup - (heavy ? 3 : 2));
+}
 import { poseFor } from "../render/animator";
 import { InputLog } from "../render/debug";
 import { Effects } from "../render/effects";
@@ -15,6 +30,7 @@ import { FighterAnimator } from "../render/fighterAnim";
 import { Hud } from "../render/hud";
 import { GameRenderer, type FighterFx } from "../render/renderer";
 import { resolvePalette, solve } from "../render/skeleton";
+import { strikeInfo } from "../render/strikeInfo";
 import { getStage, type Stage } from "../render/stages";
 import { FONT, VIEW_H, VIEW_W } from "../render/view";
 import type { Scene } from "./Scene";
@@ -22,9 +38,7 @@ import type { Scene } from "./Scene";
 /** De dónde sale el input de un lado: dispositivos del jugador, IA, guion... */
 export type InputSource = (s: GameState, side: Side) => number;
 
-const HIT_SFX: Record<string, SfxName> = { light: "hitLight", heavy: "hitHeavy", super: "hitSuper" };
 const SIMPLE_SFX: Partial<Record<SimEvent["type"], SfxName>> = {
-  block: "block",
   parry: "parry",
   redParry: "redParry",
   parryFail: "parryFail",
@@ -73,6 +87,8 @@ export class FightScene implements Scene {
   private parryFlash: [number, number] = [0, 0];
   private koSlow = 0;
   private koFocus: Side | null = null;
+  /** Frame del movimiento en el tick anterior (para que el swing suene una sola vez aunque haya congelamiento). */
+  private prevMf: [number, number] = [0, 0];
 
   constructor(
     readonly app: App,
@@ -161,13 +177,21 @@ export class FightScene implements Scene {
     const audio = this.app.audio;
     const pan = (x: number) => (this.renderer.cam.sx(toPx(x)) - VIEW_W / 2) / (VIEW_W / 2);
     for (const e of s.events) {
+      const def = s.fighters[(1 - e.side) as Side];
       if (e.type === "hit") {
-        audio.play(HIT_SFX[e.strength ?? "light"] ?? "hitLight", pan(e.x));
+        audio.play(hitSfx(e, s), pan(e.x));
         if (e.counter) audio.play("counter", pan(e.x));
+        // Capa 3 (solo con archivos de voz): queja del golpeado en golpes fuertes.
+        if (e.strength !== "light") audio.voice(def.char, "hurt", pan(e.x), 0.5);
+      } else if (e.type === "block") {
+        audio.play(e.strength === "light" ? "block" : "blockHeavy", pan(e.x));
       } else {
         const name = SIMPLE_SFX[e.type];
         if (name) audio.play(name, pan(e.x));
       }
+      if (e.type === "ko") audio.voice(def.char, "ko", pan(e.x));
+      else if (e.type === "super") audio.voice(s.fighters[e.side].char, "super", pan(e.x));
+      else if (e.type === "roundWin") audio.voice(s.fighters[e.side].char, "win", 0);
       if (e.type === "parry" || e.type === "redParry") {
         this.parryFlash[e.side] = 12;
         this.hud.popup(e.side, e.type === "redParry" ? "RED PARRY" : "PARRY", e.type === "redParry" ? "#ff6b6b" : "#9fe8ff", 45);
@@ -178,13 +202,24 @@ export class FightScene implements Scene {
         this.koFocus = (1 - e.side) as Side;
       }
     }
-    // Silbido del golpe al aire: suena en el primer frame activo si no hubo contacto.
+    // Capa 1: swing de cada golpe con extremidad, conecte o no (el impacto se suma encima si conecta).
     for (const f of s.fighters) {
-      if (f.state !== "attack" || !f.move || f.contact !== "none" || f.hitstop > 0) continue;
+      const mf = f.state === "attack" && f.move ? f.mf : 0;
+      const prev = this.prevMf[f.side];
+      this.prevMf[f.side] = mf;
+      if (!mf || mf === prev || !f.move) continue;
       const mv = getMove(f.char, f.move);
-      if (mv.kind === "normal" && f.mf === mv.startup && mv.hitboxes.length) {
-        audio.play(mv.strength === "heavy" ? "whiffHeavy" : "whiffLight", pan(f.x));
+      const limb = mv.anim.limb;
+      if (!limb || limb === "none" || !mv.hitboxes.length) continue;
+      const heavy = mv.strength === "heavy";
+      if (mf === 1 && mv.kind !== "super") {
+        // Voz al lanzar (solo con archivos): rara en ligeros, más en fuertes y especiales.
+        audio.voice(f.char, mv.kind === "special" ? "special" : heavy ? "heavy" : "attack", pan(f.x), mv.kind === "special" ? 0.6 : heavy ? 0.35 : 0.12);
       }
+      if (mf !== swingFrame(mv.startup, heavy)) continue;
+      const info = strikeInfo(f.char, f.move);
+      const name: SfxName = info.special ? "swingSpecial" : info.limb === "kick" ? (heavy ? "swingKickH" : "swingKickL") : heavy ? "swingPunchH" : "swingPunchL";
+      audio.play(name, pan(f.x));
     }
     if (this.koSlow > 0) {
       this.koSlow--;

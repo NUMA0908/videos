@@ -1,19 +1,29 @@
 /**
- * Audio sintetizado con Web Audio API: ningún archivo externo.
- * Cada golpe se construye por capas (impacto grave + "clack" agudo + ruido), con variaciones
- * para bloqueo, parry, counter hit, proyectil, súper y KO. La música es un secuenciador sencillo.
+ * Audio con Web Audio API. Dos fuentes, con la misma interfaz:
+ *  1. **Archivos propios** en `assets/audio/` (ver ASSETS_NEEDED.md): si existen, se usan. Varias variantes
+ *     por sonido (`hitPunchL_1.ogg`, `hitPunchL_2.ogg`…), voces por personaje y música por escenario.
+ *  2. **Síntesis** (lo que suena hoy): cada golpe se construye por capas (impacto grave + "clack" agudo + ruido),
+ *     con 3–4 variantes por sonido y un ligero cambio de tono para que no suene repetido.
+ * Capas de un golpe (las decide FightScene): swing al lanzar → impacto al conectar → voz (solo con archivos).
  */
 export type SfxName =
-  | "hitLight"
-  | "hitHeavy"
+  | "swingPunchL"
+  | "swingPunchH"
+  | "swingKickL"
+  | "swingKickH"
+  | "swingSpecial"
+  | "hitPunchL"
+  | "hitPunchH"
+  | "hitKickL"
+  | "hitKickH"
+  | "hitSpecial"
   | "hitSuper"
   | "counter"
   | "block"
+  | "blockHeavy"
   | "parry"
   | "redParry"
   | "parryFail"
-  | "whiffLight"
-  | "whiffHeavy"
   | "projectile"
   | "clash"
   | "super"
@@ -30,7 +40,91 @@ export type SfxName =
   | "win"
   | "select"
   | "confirm"
-  | "back";
+  | "back"
+  // Nombres antiguos (equivalen a los de arriba).
+  | "hitLight"
+  | "hitHeavy"
+  | "whiffLight"
+  | "whiffHeavy";
+
+/** Voces cortas por personaje (solo con archivos: no se sintetizan voces). */
+export type VoiceName = "attack" | "heavy" | "special" | "super" | "hurt" | "ko" | "win";
+
+const ALIASES: Partial<Record<SfxName, SfxName>> = {
+  hitLight: "hitPunchL",
+  hitHeavy: "hitPunchH",
+  whiffLight: "swingPunchL",
+  whiffHeavy: "swingPunchH",
+};
+
+/** Variantes sintetizadas por sonido (los no listados tienen 1: menús y anuncios deben sonar siempre igual). */
+const SYNTH_VARIANTS: Partial<Record<SfxName, number>> = {
+  swingPunchL: 4,
+  swingPunchH: 4,
+  swingKickL: 4,
+  swingKickH: 4,
+  swingSpecial: 3,
+  hitPunchL: 4,
+  hitPunchH: 4,
+  hitKickL: 4,
+  hitKickH: 4,
+  hitSpecial: 3,
+  hitSuper: 3,
+  block: 4,
+  blockHeavy: 3,
+  parry: 3,
+  projectile: 3,
+  land: 3,
+  jump: 3,
+  dash: 3,
+  knockdown: 3,
+  throwHit: 3,
+};
+
+/** Multiplicadores de cada variante sintetizada: tono, filtro y duración. */
+const VARIANT = [
+  { f: 1, flt: 1, d: 1 },
+  { f: 0.89, flt: 1.25, d: 1.1 },
+  { f: 1.12, flt: 0.82, d: 0.92 },
+  { f: 0.95, flt: 1.1, d: 1.05 },
+];
+
+/** Sonidos que también van al eco (se distinguen sobre la música). */
+const ECHO = new Set<SfxName>(["hitSuper", "counter", "parry", "redParry", "projectile", "clash", "super", "ko", "throwHit", "round", "fight", "win"]);
+
+/**
+ * Archivos de audio encontrados al compilar (Vite los descubre: si la carpeta está vacía no se carga nada
+ * y no hay peticiones fallidas). Clave → URLs ordenadas por número de variante.
+ */
+const FILES = import.meta.glob("/assets/audio/**/*.{ogg,mp3,wav}", { eager: true, query: "?url", import: "default" }) as Record<string, string>;
+
+/** "/assets/audio/sfx/hitPunchL_2.ogg" → { key: "sfx/hitPunchL", n: 2 }. Exportado para los tests. */
+export function sampleKey(path: string): { key: string; n: number } | null {
+  const m = /^\/?assets\/audio\/(.+?)(?:_(\d+))?\.(?:ogg|mp3|wav)$/i.exec(path);
+  return m ? { key: m[1], n: m[2] ? Number(m[2]) : 0 } : null;
+}
+
+export function groupSamples(files: Record<string, string>): Map<string, string[]> {
+  const tmp = new Map<string, { n: number; url: string }[]>();
+  for (const [path, url] of Object.entries(files)) {
+    const k = sampleKey(path);
+    if (!k) continue;
+    const list = tmp.get(k.key) ?? [];
+    list.push({ n: k.n, url });
+    tmp.set(k.key, list);
+  }
+  const out = new Map<string, string[]>();
+  for (const [key, list] of tmp) out.set(key, list.sort((a, b) => a.n - b.n).map((x) => x.url));
+  return out;
+}
+
+/** Elige una variante al azar sin repetir la anterior (presentación: puede usar Math.random). */
+export function pickVariant(n: number, last: number | undefined, rnd: () => number = Math.random): number {
+  if (n <= 1) return 0;
+  let v = Math.floor(rnd() * n);
+  if (v === last) v = (v + 1 + Math.floor(rnd() * (n - 1))) % n;
+  return v;
+}
 
 export class AudioEngine {
   private ctx: AudioContext | null = null;
@@ -43,6 +137,12 @@ export class AudioEngine {
   private musicVolume = 0.5;
   private music: MusicPlayer | null = null;
   private pendingTheme: string | null = null;
+  /** Sonidos cargados desde archivos (clave "sfx/hitPunchL", "voice/rayo/hurt", "music/muelle"). */
+  private samples = new Map<string, AudioBuffer[]>();
+  private lastVariant = new Map<string, number>();
+  private voiceUntil = new Map<string, number>();
+  private musicFile: AudioBufferSourceNode | null = null;
+  private musicFileName: string | null = null;
   muted = false;
 
   /** Los navegadores solo permiten audio tras un gesto del usuario: se llama en la primera tecla/clic. */
@@ -85,7 +185,36 @@ export class AudioEngine {
       d[i] = (seed / 2147483647) * 2 - 1;
     }
     this.music = new MusicPlayer(ctx, this.musicBus, this.noise);
-    if (this.pendingTheme) this.music.play(this.pendingTheme);
+    this.startMusic();
+    void this.loadSamples();
+  }
+
+  /** Carga y decodifica los archivos de `assets/audio/` (si los hay). Un archivo roto se ignora con un aviso. */
+  private async loadSamples(): Promise<void> {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const groups = groupSamples(FILES);
+    await Promise.all(
+      [...groups].map(async ([key, urls]) => {
+        const bufs: AudioBuffer[] = [];
+        for (const url of urls) {
+          try {
+            const data = await (await fetch(url)).arrayBuffer();
+            bufs.push(await ctx.decodeAudioData(data));
+          } catch (e) {
+            console.warn(`Audio: no se pudo cargar ${url}: ${String(e)}`);
+          }
+        }
+        if (bufs.length) this.samples.set(key, bufs);
+      }),
+    );
+    // Si llegó la música de archivo del escenario actual, sustituye al secuenciador.
+    this.startMusic();
+  }
+
+  /** Cuántos archivos hay cargados para una clave (para el menú de depuración y los tests). */
+  sampleCount(key: string): number {
+    return this.samples.get(key)?.length ?? 0;
   }
 
   setVolumes(sfx: number, music: number): void {
@@ -104,9 +233,71 @@ export class AudioEngine {
 
   playMusic(theme: string | null): void {
     this.pendingTheme = theme;
-    if (!this.music) return;
+    this.startMusic();
+  }
+
+  /** Música de archivo (`assets/audio/music/<tema>.ogg`, en bucle) si existe; si no, el secuenciador. */
+  private startMusic(): void {
+    if (!this.ctx || !this.music) return;
+    const theme = this.pendingTheme;
+    const buf = theme ? this.samples.get(`music/${theme}`)?.[0] : undefined;
+    if (buf) {
+      if (this.musicFileName === theme && this.musicFile) return;
+      this.stopMusicFile();
+      this.music.stop();
+      const src = this.ctx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      src.connect(this.musicBus);
+      src.start();
+      this.musicFile = src;
+      this.musicFileName = theme;
+      return;
+    }
+    this.stopMusicFile();
     if (theme) this.music.play(theme);
     else this.music.stop();
+  }
+
+  private stopMusicFile(): void {
+    if (!this.musicFile) return;
+    try {
+      this.musicFile.stop();
+    } catch {
+      // ya estaba parada
+    }
+    this.musicFile.disconnect();
+    this.musicFile = null;
+    this.musicFileName = null;
+  }
+
+  private playBuffer(buf: AudioBuffer, pan: number, rate: number, toEcho: boolean, gain = 1): number {
+    const ctx = this.ctx!;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.playbackRate.value = rate;
+    const g = ctx.createGain();
+    g.gain.value = gain;
+    src.connect(g).connect(this.out(pan, toEcho));
+    src.start();
+    return buf.duration / rate;
+  }
+
+  /**
+   * Voz corta de un personaje. Solo suena si hay archivos (`assets/audio/voice/<personaje>/<voz>_N.ogg`);
+   * `chance` evita que grite en cada golpe y nunca se pisan dos voces del mismo personaje.
+   */
+  voice(char: string, name: VoiceName, pan = 0, chance = 1): void {
+    if (!this.ctx || this.muted) return;
+    const key = `voice/${char}/${name}`;
+    const bufs = this.samples.get(key);
+    if (!bufs?.length || Math.random() > chance) return;
+    const now = this.ctx.currentTime;
+    if ((this.voiceUntil.get(char) ?? 0) > now) return;
+    const v = pickVariant(bufs.length, this.lastVariant.get(key));
+    this.lastVariant.set(key, v);
+    const dur = this.playBuffer(bufs[v], pan, 0.98 + Math.random() * 0.04, false, 0.9);
+    this.voiceUntil.set(char, now + dur * 0.8);
   }
 
   // ---------------------------------------------------------------- primitivas
@@ -158,27 +349,98 @@ export class AudioEngine {
   /** Reproduce un efecto. `pan` −1..1 según la posición en pantalla; `pitch` varía ligeramente para no cansar. */
   play(name: SfxName, pan = 0, pitch = 1): void {
     if (!this.ctx || this.muted) return;
-    const t = this.ctx.currentTime + 0.005;
-    const p = pitch * (0.96 + Math.random() * 0.08);
+    const key = ALIASES[name] ?? name;
+    const files = this.samples.get(`sfx/${key}`);
+    const n = files?.length ?? SYNTH_VARIANTS[key] ?? 1;
+    const v = pickVariant(n, this.lastVariant.get(key));
+    this.lastVariant.set(key, v);
+    const p = pitch * (0.97 + Math.random() * 0.06);
+    if (files?.length) {
+      this.playBuffer(files[v], pan, p, ECHO.has(key));
+      return;
+    }
+    this.synth(key, v, pan, p);
+  }
+
+  private synth(name: SfxName, variant: number, pan: number, pitch: number): void {
+    const t = this.ctx!.currentTime + 0.005;
+    const V = VARIANT[variant % VARIANT.length];
+    const p = pitch * V.f;
+    const d = V.d;
+    const flt = V.flt;
     switch (name) {
-      case "hitLight": {
+      // ---- Swing (capa 1: al lanzar el golpe, conecte o no). Ruido filtrado que barre hacia arriba.
+      case "swingPunchL": {
         const o = this.out(pan);
-        this.tone("sine", 190 * p, 70, t, 0.08, 0.7, o);
-        this.noiseBurst(t, 0.05, 0.5, "highpass", 2500, o);
+        this.noiseBurst(t, 0.07 * d, 0.16, "bandpass", 1000 * flt, o, 1.4, 2900 * flt);
+        break;
+      }
+      case "swingPunchH": {
+        const o = this.out(pan);
+        this.noiseBurst(t, 0.13 * d, 0.27, "bandpass", 620 * flt, o, 1.5, 2300 * flt);
+        this.tone("sine", 130 * p, 90, t, 0.1 * d, 0.08, o, 0.03);
+        break;
+      }
+      case "swingKickL": {
+        const o = this.out(pan);
+        this.noiseBurst(t, 0.1 * d, 0.18, "bandpass", 520 * flt, o, 1.2, 1700 * flt);
+        break;
+      }
+      case "swingKickH": {
+        const o = this.out(pan);
+        // Más largo y grave: la pierna mueve más aire.
+        this.noiseBurst(t, 0.19 * d, 0.3, "bandpass", 340 * flt, o, 1.8, 1500 * flt);
+        this.tone("sine", 95 * p, 60, t, 0.16 * d, 0.1, o, 0.04);
+        break;
+      }
+      case "swingSpecial": {
+        const o = this.out(pan);
+        this.noiseBurst(t, 0.16 * d, 0.22, "bandpass", 500 * flt, o, 1.2, 3200 * flt);
+        this.tone("triangle", 300 * p, 760 * p, t, 0.14 * d, 0.09, o, 0.02);
+        break;
+      }
+      // ---- Impacto (capa 2: al conectar). Puño = seco y agudo; patada = más grave y "carnoso".
+      case "hitPunchL": {
+        const o = this.out(pan);
+        this.tone("sine", 190 * p, 70, t, 0.08 * d, 0.7, o);
+        this.noiseBurst(t, 0.05 * d, 0.5, "highpass", 2500 * flt, o);
         this.tone("square", 1400 * p, 900, t, 0.02, 0.12, o);
         break;
       }
-      case "hitHeavy": {
+      case "hitPunchH": {
         const o = this.out(pan);
-        this.tone("sine", 140 * p, 38, t, 0.22, 1.0, o);
+        this.tone("sine", 140 * p, 38, t, 0.22 * d, 1.0, o);
         this.tone("triangle", 880 * p, 300, t, 0.05, 0.25, o);
-        this.noiseBurst(t, 0.12, 0.7, "lowpass", 2400, o, 0.7, 500);
-        this.noiseBurst(t, 0.04, 0.45, "highpass", 3500, o);
+        this.noiseBurst(t, 0.12 * d, 0.7, "lowpass", 2400 * flt, o, 0.7, 500);
+        this.noiseBurst(t, 0.04, 0.45, "highpass", 3500 * flt, o);
+        break;
+      }
+      case "hitKickL": {
+        const o = this.out(pan);
+        this.tone("sine", 150 * p, 55, t, 0.1 * d, 0.75, o);
+        this.noiseBurst(t, 0.07 * d, 0.55, "bandpass", 1300 * flt, o, 1.4);
+        this.tone("triangle", 700 * p, 420, t, 0.03, 0.12, o);
+        break;
+      }
+      case "hitKickH": {
+        const o = this.out(pan);
+        this.tone("sine", 112 * p, 32, t, 0.28 * d, 1.0, o);
+        this.noiseBurst(t, 0.16 * d, 0.75, "bandpass", 950 * flt, o, 0.9, 260);
+        this.tone("triangle", 600 * p, 190, t, 0.07, 0.22, o);
+        this.noiseBurst(t, 0.03, 0.35, "highpass", 3000 * flt, o);
+        break;
+      }
+      case "hitSpecial": {
+        const o = this.out(pan, true);
+        this.tone("sine", 130 * p, 36, t, 0.24 * d, 1.0, o);
+        // Capa de energía: chasquido eléctrico que distingue un especial de un normal.
+        this.tone("sawtooth", 420 * p, 1300 * p, t, 0.06 * d, 0.12, o);
+        this.noiseBurst(t, 0.14 * d, 0.6, "bandpass", 2200 * flt, o, 1.1, 600);
         break;
       }
       case "hitSuper": {
         const o = this.out(pan, true);
-        this.tone("sine", 120 * p, 32, t, 0.3, 1.0, o);
+        this.tone("sine", 120 * p, 32, t, 0.3 * d, 1.0, o);
         this.tone("sawtooth", 600 * p, 200, t, 0.08, 0.18, o);
         this.noiseBurst(t, 0.18, 0.8, "bandpass", 1800, o, 0.8, 400);
         break;
@@ -191,15 +453,23 @@ export class AudioEngine {
       }
       case "block": {
         const o = this.out(pan);
-        this.tone("sine", 95 * p, 60, t, 0.07, 0.6, o);
-        this.noiseBurst(t, 0.06, 0.5, "bandpass", 900 * p, o, 2);
+        this.tone("sine", 95 * p, 60, t, 0.07 * d, 0.6, o);
+        this.noiseBurst(t, 0.06 * d, 0.5, "bandpass", 900 * p * flt, o, 2);
         this.tone("square", 500 * p, 420, t, 0.015, 0.08, o);
+        break;
+      }
+      case "blockHeavy": {
+        const o = this.out(pan);
+        this.tone("sine", 78 * p, 44, t, 0.13 * d, 0.85, o);
+        this.noiseBurst(t, 0.1 * d, 0.6, "bandpass", 650 * p * flt, o, 1.6);
+        this.tone("square", 380 * p, 300, t, 0.02, 0.1, o);
         break;
       }
       case "parry":
       case "redParry": {
         const o = this.out(pan, true);
-        const base = name === "redParry" ? 1567 : 2093;
+        // El parry es una nota limpia: solo varía un poco el brillo, no la afinación.
+        const base = name === "redParry" ? 1567 : 2093 * (1 + (V.f - 1) * 0.15);
         this.noiseBurst(t, 0.12, 0.35, "highpass", 5000, o, 0.7, 9000);
         this.tone("sine", base, base, t, 0.55, 0.32, o);
         this.tone("sine", base * 1.5, base * 1.5, t, 0.4, 0.2, o);
@@ -212,17 +482,10 @@ export class AudioEngine {
         this.tone("triangle", 330, 180, t, 0.12, 0.15, o);
         break;
       }
-      case "whiffLight":
-      case "whiffHeavy": {
-        const o = this.out(pan);
-        const heavy = name === "whiffHeavy";
-        this.noiseBurst(t, heavy ? 0.16 : 0.08, heavy ? 0.28 : 0.16, "bandpass", heavy ? 500 : 900, o, 1.4, heavy ? 2000 : 2600);
-        break;
-      }
       case "projectile": {
         const o = this.out(pan, true);
-        this.noiseBurst(t, 0.3, 0.4, "bandpass", 400, o, 1, 2400);
-        this.tone("sawtooth", 180, 520, t, 0.22, 0.18, o, 0.02);
+        this.noiseBurst(t, 0.3 * d, 0.4, "bandpass", 400 * flt, o, 1, 2400 * flt);
+        this.tone("sawtooth", 180 * p, 520 * p, t, 0.22, 0.18, o, 0.02);
         this.tone("square", 70, 40, t, 0.1, 0.3, o);
         break;
       }
@@ -248,20 +511,20 @@ export class AudioEngine {
       }
       case "jump": {
         const o = this.out(pan);
-        this.noiseBurst(t, 0.06, 0.12, "bandpass", 700, o, 1, 1600);
+        this.noiseBurst(t, 0.06 * d, 0.12, "bandpass", 700 * flt, o, 1, 1600 * flt);
         break;
       }
       case "land":
       case "knockdown": {
         const o = this.out(pan);
         const big = name === "knockdown";
-        this.tone("sine", big ? 110 : 140, 45, t, big ? 0.25 : 0.08, big ? 0.8 : 0.3, o);
-        this.noiseBurst(t, big ? 0.2 : 0.06, big ? 0.4 : 0.15, "lowpass", 800, o);
+        this.tone("sine", (big ? 110 : 140) * p, 45, t, (big ? 0.25 : 0.08) * d, big ? 0.8 : 0.3, o);
+        this.noiseBurst(t, (big ? 0.2 : 0.06) * d, big ? 0.4 : 0.15, "lowpass", 800 * flt, o);
         break;
       }
       case "dash": {
         const o = this.out(pan);
-        this.noiseBurst(t, 0.14, 0.18, "bandpass", 500, o, 1, 1800);
+        this.noiseBurst(t, 0.14 * d, 0.18, "bandpass", 500 * flt, o, 1, 1800 * flt);
         break;
       }
       case "throw": {
@@ -272,8 +535,8 @@ export class AudioEngine {
       }
       case "throwHit": {
         const o = this.out(pan, true);
-        this.tone("sine", 100, 30, t, 0.4, 1.0, o);
-        this.noiseBurst(t, 0.3, 0.7, "lowpass", 1500, o, 0.6, 150);
+        this.tone("sine", 100 * p, 30, t, 0.4 * d, 1.0, o);
+        this.noiseBurst(t, 0.3 * d, 0.7, "lowpass", 1500 * flt, o, 0.6, 150);
         break;
       }
       case "tech": {
