@@ -19,4 +19,7 @@ npm install
 npm run dev        # http://localhost:5173
 npm test           # vitest
 npm run typecheck
+npm run assets     # regenera ASSETS_NEEDED.md (animaciones y sonidos que faltan) desde los datos
 ```
+
+Si cambias frame data o el catálogo de audio (`src/audio/catalog.ts`), corre también `npm run assets`.

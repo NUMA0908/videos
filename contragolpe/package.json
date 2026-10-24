@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "framedata": "tsx scripts/framedata.ts",
+    "assets": "tsx scripts/assets.ts",
     "sim": "tsx scripts/balance.ts",
     "electron:compile": "node scripts/electron-compile.mjs",
     "app:dev": "node scripts/electron-dev.mjs",

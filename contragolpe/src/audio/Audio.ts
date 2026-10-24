@@ -6,80 +6,19 @@
  *     con 3–4 variantes por sonido y un ligero cambio de tono para que no suene repetido.
  * Capas de un golpe (las decide FightScene): swing al lanzar → impacto al conectar → voz (solo con archivos).
  */
-export type SfxName =
-  | "swingPunchL"
-  | "swingPunchH"
-  | "swingKickL"
-  | "swingKickH"
-  | "swingSpecial"
-  | "hitPunchL"
-  | "hitPunchH"
-  | "hitKickL"
-  | "hitKickH"
-  | "hitSpecial"
-  | "hitSuper"
-  | "counter"
-  | "block"
-  | "blockHeavy"
-  | "parry"
-  | "redParry"
-  | "parryFail"
-  | "projectile"
-  | "clash"
-  | "super"
-  | "ko"
-  | "jump"
-  | "land"
-  | "dash"
-  | "throw"
-  | "throwHit"
-  | "tech"
-  | "knockdown"
-  | "round"
-  | "fight"
-  | "win"
-  | "select"
-  | "confirm"
-  | "back"
-  // Nombres antiguos (equivalen a los de arriba).
-  | "hitLight"
-  | "hitHeavy"
-  | "whiffLight"
-  | "whiffHeavy";
+import { SFX_CATALOG, type AliasName, type SfxName, type VoiceName } from "./catalog";
 
-/** Voces cortas por personaje (solo con archivos: no se sintetizan voces). */
-export type VoiceName = "attack" | "heavy" | "special" | "super" | "hurt" | "ko" | "win";
+export type { SfxName, VoiceName };
 
-const ALIASES: Partial<Record<SfxName, SfxName>> = {
+const ALIASES: Record<AliasName, SfxName> = {
   hitLight: "hitPunchL",
   hitHeavy: "hitPunchH",
   whiffLight: "swingPunchL",
   whiffHeavy: "swingPunchH",
 };
 
-/** Variantes sintetizadas por sonido (los no listados tienen 1: menús y anuncios deben sonar siempre igual). */
-const SYNTH_VARIANTS: Partial<Record<SfxName, number>> = {
-  swingPunchL: 4,
-  swingPunchH: 4,
-  swingKickL: 4,
-  swingKickH: 4,
-  swingSpecial: 3,
-  hitPunchL: 4,
-  hitPunchH: 4,
-  hitKickL: 4,
-  hitKickH: 4,
-  hitSpecial: 3,
-  hitSuper: 3,
-  block: 4,
-  blockHeavy: 3,
-  parry: 3,
-  projectile: 3,
-  land: 3,
-  jump: 3,
-  dash: 3,
-  knockdown: 3,
-  throwHit: 3,
-};
+/** Variantes sintetizadas por sonido: las del catálogo (menús y anuncios tienen 1: deben sonar siempre igual). */
+const SYNTH_VARIANTS: Partial<Record<SfxName, number>> = Object.fromEntries(Object.entries(SFX_CATALOG).map(([k, v]) => [k, v.variants]));
 
 /** Multiplicadores de cada variante sintetizada: tono, filtro y duración. */
 const VARIANT = [
@@ -349,7 +288,7 @@ export class AudioEngine {
   /** Reproduce un efecto. `pan` −1..1 según la posición en pantalla; `pitch` varía ligeramente para no cansar. */
   play(name: SfxName, pan = 0, pitch = 1): void {
     if (!this.ctx || this.muted) return;
-    const key = ALIASES[name] ?? name;
+    const key = ALIASES[name as AliasName] ?? name;
     const files = this.samples.get(`sfx/${key}`);
     const n = files?.length ?? SYNTH_VARIANTS[key] ?? 1;
     const v = pickVariant(n, this.lastVariant.get(key));
