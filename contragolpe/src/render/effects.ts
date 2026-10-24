@@ -5,6 +5,7 @@ import type { GameState, SimEvent } from "../sim/types";
 import type { Camera } from "./camera";
 import { withAlpha } from "./projectiles";
 import { resolvePalette } from "./skeleton";
+import { strikeInfo } from "./strikeInfo";
 
 /**
  * Efectos de "game feel": chispas, polvo, anillos, sacudida de cámara y estelas de golpe.
@@ -37,6 +38,27 @@ interface Ring {
   max: number;
   color: string;
   width: number;
+}
+
+/**
+ * Destello con forma en el punto de impacto (1 a 10 frames): dice de un vistazo QUÉ golpeó.
+ * star = puño (estrella de puntas), slash = patada (arco en la dirección del golpe),
+ * burst = especial/proyectil (estrella del color de energía), shield = bloqueo (arco de guardia).
+ */
+type FlareKind = "star" | "slash" | "burst" | "shield";
+
+interface Flare {
+  kind: FlareKind;
+  x: number;
+  y: number;
+  r: number;
+  /** Dirección del golpe en radianes (0 = hacia la derecha de la pantalla). */
+  angle: number;
+  /** Giro propio de la estrella (para que no salga siempre igual). */
+  spin: number;
+  life: number;
+  max: number;
+  color: string;
 }
 
 interface Smear {
@@ -74,6 +96,8 @@ export class Effects {
   private smears: Smear[] = [];
   private particlePool: Particle[] = [];
   private ringPool: Ring[] = [];
+  private flares: Flare[] = [];
+  private flarePool: Flare[] = [];
   private shakeMag = 0;
   private shakeT = 0;
   /** Destello de pantalla (0..1) y su color. */
@@ -89,8 +113,10 @@ export class Effects {
   clear(): void {
     for (const p of this.particles) this.particlePool.push(p);
     for (const r of this.rings) this.ringPool.push(r);
+    for (const f of this.flares) this.flarePool.push(f);
     this.particles.length = 0;
     this.rings.length = 0;
+    this.flares.length = 0;
     this.smears.length = 0;
     this.shakeMag = 0;
     this.flash = 0;
@@ -158,6 +184,20 @@ export class Effects {
     this.rings.push(g);
   }
 
+  private flare(kind: FlareKind, x: number, y: number, r: number, angle: number, frames: number, color: string): void {
+    const f = this.flarePool.pop() ?? ({} as Flare);
+    f.kind = kind;
+    f.x = x;
+    f.y = y;
+    f.r = r;
+    f.angle = angle;
+    f.spin = this.rng.range(0, Math.PI);
+    f.life = frames;
+    f.max = frames;
+    f.color = color;
+    this.flares.push(f);
+  }
+
   /** Traduce los eventos de la simulación de este tick en efectos. Coordenadas en px de mundo (y hacia arriba). */
   onEvents(s: GameState, events: SimEvent[]): void {
     for (const e of events) {
@@ -171,19 +211,35 @@ export class Effects {
         case "hit": {
           const heavy = e.strength === "heavy";
           const sup = e.strength === "super";
-          const n = sup ? 22 : heavy ? 14 : 7;
-          this.burst(x, y, n, { speed: sup ? [5, 13] : heavy ? [4, 11] : [3, 7], kind: "spark", max: heavy || sup ? 16 : 11, size: heavy ? 3.4 : 2.6, color: "#fff4c2", angle: cone });
-          this.burst(x, y, Math.ceil(n / 2), { speed: [1, 4], kind: "ember", max: 20, size: heavy ? 5 : 3.5, color: e.counter ? "#ff6a3c" : "#ffd23f", drag: 0.9 });
-          this.ring(x, y, heavy || sup ? 14 : 8, heavy || sup ? 4.5 : 3, heavy || sup ? 12 : 8, e.counter ? "#ff6a3c" : "#ffffff", heavy ? 4 : 2.5);
+          const big = heavy || sup;
+          const info = strikeInfo(s.fighters[e.side].char, e.move);
+          // Color y forma según lo que golpea: puño = estrella cálida, patada = arco anaranjado,
+          // especial/proyectil = estrella del color de energía del personaje.
+          const spark = info.special ? energy : info.limb === "kick" ? "#ffd9a0" : "#fff4c2";
+          const dirA = away === 1 ? 0 : Math.PI;
+          const n = sup ? 22 : heavy ? 14 : 6;
+          this.burst(x, y, n, { speed: sup ? [5, 13] : heavy ? [4, 11] : [3, 7], kind: "spark", max: big ? 16 : 10, size: heavy ? 3.4 : 2.6, color: spark, angle: cone });
+          this.burst(x, y, Math.ceil(n / 2), { speed: [1, 4], kind: "ember", max: 20, size: heavy ? 5 : 3.5, color: e.counter ? "#ff6a3c" : info.special ? energy : "#ffd23f", drag: 0.9 });
+          const fr = sup ? 38 : heavy ? 30 : 17;
+          const ff = sup ? 10 : heavy ? 8 : 5;
+          if (info.special) this.flare("burst", x, y, fr, dirA, ff, energy);
+          else if (info.limb === "kick") this.flare("slash", x, y, fr * 1.15, dirA, ff + 1, "#ffb15c");
+          else this.flare("star", x, y, fr, dirA, ff, "#ffe27a");
+          if (big) this.ring(x, y, 14, 4.5, 12, e.counter ? "#ff6a3c" : "#ffffff", heavy ? 4 : 3);
           if (e.counter) this.ring(x, y, 6, 7, 14, "#ff6a3c", 5);
-          this.shake(sup ? 9 : heavy ? 6 : 2.5, sup ? 14 : heavy ? 10 : 5);
+          // Sacudida solo en golpes fuertes (y un toque en los counter hit ligeros): nunca en cada golpe.
+          if (big) this.shake(sup ? 9 : 6, sup ? 14 : 10);
+          else if (e.counter) this.shake(2, 4);
           break;
         }
-        case "block":
-          this.burst(x, y, e.strength === "heavy" ? 9 : 5, { speed: [2, 6], kind: "spark", max: 9, size: 2.4, color: "#9fd7ff", angle: cone });
-          this.ring(x, y, 10, 2.2, 9, "#7fc8ff", 3);
-          this.shake(e.strength === "heavy" ? 2.5 : 1, 4);
+        case "block": {
+          const heavy = e.strength === "heavy" || e.strength === "super";
+          this.burst(x, y, heavy ? 9 : 5, { speed: [2, 6], kind: "spark", max: 9, size: 2.4, color: "#9fd7ff", angle: cone });
+          // Arco de guardia mirando hacia el atacante.
+          this.flare("shield", x, y, heavy ? 30 : 22, away === 1 ? Math.PI : 0, heavy ? 9 : 7, "#7fc8ff");
+          if (heavy) this.shake(1.5, 4);
           break;
+        }
         case "parry":
         case "redParry": {
           const c = e.type === "redParry" ? "#ff5a5a" : "#bff3ff";
@@ -286,6 +342,8 @@ export class Effects {
       r.life--;
     }
     compact(this.rings, this.ringPool);
+    for (const f of this.flares) f.life--;
+    compact(this.flares, this.flarePool);
     for (const m of this.smears) if (m.life < 6) m.life--;
     compact(this.smears);
     if (this.shakeT > 0) this.shakeT--;
@@ -369,6 +427,65 @@ export class Effects {
       ctx.lineWidth = r.width * (r.life / r.max) + 0.5;
       ctx.beginPath();
       ctx.arc(cam.sx(r.x), cam.sy(r.y), r.r * cam.zoom, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    for (const f of this.flares) this.drawFlare(ctx, cam, f);
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  private drawFlare(ctx: CanvasRenderingContext2D, cam: Camera, f: Flare): void {
+    const k = f.life / f.max; // 1 → 0
+    // Aparece casi a tamaño completo (impacto nítido) y crece un poco mientras se desvanece.
+    const r = f.r * (0.85 + 0.35 * (1 - k)) * cam.zoom;
+    const a = this.settings.flashes ? Math.min(1, k * 1.6) : Math.min(0.6, k);
+    ctx.save();
+    ctx.translate(cam.sx(f.x), cam.sy(f.y));
+    ctx.globalAlpha = a;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    if (f.kind === "star" || f.kind === "burst") {
+      const spikes = f.kind === "star" ? 8 : 10;
+      const inner = f.kind === "star" ? 0.32 : 0.42;
+      ctx.rotate(f.spin);
+      ctx.beginPath();
+      for (let i = 0; i < spikes * 2; i++) {
+        const rr = i % 2 === 0 ? r * (i % 4 === 0 ? 1 : 0.72) : r * inner;
+        const ang = (i / (spikes * 2)) * Math.PI * 2;
+        if (i === 0) ctx.moveTo(Math.cos(ang) * rr, Math.sin(ang) * rr);
+        else ctx.lineTo(Math.cos(ang) * rr, Math.sin(ang) * rr);
+      }
+      ctx.closePath();
+      ctx.fillStyle = f.color;
+      ctx.fill();
+      ctx.scale(0.55, 0.55);
+      ctx.fillStyle = "#ffffff";
+      ctx.fill();
+    } else if (f.kind === "slash") {
+      // Arco grueso que se abre en la dirección del golpe (el canvas tiene y hacia abajo).
+      ctx.rotate(-f.angle);
+      const sweep = 1.05;
+      ctx.strokeStyle = f.color;
+      ctx.lineWidth = (6 + 10 * k) * cam.zoom;
+      ctx.beginPath();
+      ctx.arc(-r * 0.55, 0, r, -sweep, sweep);
+      ctx.stroke();
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = (2 + 4 * k) * cam.zoom;
+      ctx.beginPath();
+      ctx.arc(-r * 0.55, 0, r, -sweep * 0.8, sweep * 0.8);
+      ctx.stroke();
+    } else {
+      ctx.rotate(-f.angle);
+      ctx.strokeStyle = f.color;
+      ctx.lineWidth = (3 + 5 * k) * cam.zoom;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, -0.95, 0.95);
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(255,255,255,0.9)";
+      ctx.lineWidth = 1.5 * cam.zoom;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.82, -0.7, 0.7);
       ctx.stroke();
     }
     ctx.restore();

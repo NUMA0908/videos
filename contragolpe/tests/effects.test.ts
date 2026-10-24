@@ -34,4 +34,30 @@ describe("efectos (fuera de la simulación)", () => {
     low.trackSmear(0, true, { x: 0, y: 0 }, "#fff");
     expect((low as unknown as { smears: unknown[] }).smears.length).toBe(0);
   });
+
+  it("sacudida solo en golpes fuertes; los ligeros y los bloqueos ligeros no mueven la cámara", () => {
+    const s = createMatch({}, 1);
+    const shakeOf = (e: SimEvent) => {
+      const fx = new Effects();
+      fx.onEvents(s, [e]);
+      return (fx as unknown as { shakeMag: number }).shakeMag;
+    };
+    expect(shakeOf({ type: "hit", side: 0, x: 0, y: 10000, strength: "light", move: "st_lp" })).toBe(0);
+    expect(shakeOf({ type: "block", side: 0, x: 0, y: 10000, strength: "light" })).toBe(0);
+    expect(shakeOf({ type: "hit", side: 0, x: 0, y: 10000, strength: "heavy", move: "st_hp" })).toBeGreaterThan(0);
+    expect(shakeOf({ type: "hit", side: 0, x: 0, y: 10000, strength: "light", move: "st_lp", counter: true })).toBeGreaterThan(0);
+  });
+
+  it("el destello de impacto cambia de forma según lo que golpea", () => {
+    const s = createMatch({ chars: ["rayo", "rayo"] }, 1);
+    const kindOf = (e: SimEvent) => {
+      const fx = new Effects();
+      fx.onEvents(s, [e]);
+      return (fx as unknown as { flares: { kind: string }[] }).flares.map((f) => f.kind);
+    };
+    expect(kindOf({ type: "hit", side: 0, x: 0, y: 10000, strength: "light", move: "st_lp" })).toEqual(["star"]);
+    expect(kindOf({ type: "hit", side: 0, x: 0, y: 10000, strength: "heavy", move: "st_hk" })).toEqual(["slash"]);
+    expect(kindOf({ type: "hit", side: 0, x: 0, y: 10000, strength: "heavy", move: "fb_h" })).toEqual(["burst"]);
+    expect(kindOf({ type: "block", side: 0, x: 0, y: 10000, strength: "light" })).toEqual(["shield"]);
+  });
 });

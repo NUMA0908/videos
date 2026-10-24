@@ -253,9 +253,15 @@ y usan su propio azar. Regla de oro: **el fuerte tiene que destacar sobre el lig
 |---|---|---|---|
 | Hitstop (ambos congelados) | 4 f (~67 ms) | 9–10 f (~150–170 ms) | 5 f por golpe, el último +12; KO ≥ 14 f |
 | Counter hit | +2 f de hitstop, anillo rojo, "COUNTER", campanita | igual | — |
-| Sacudida de cámara | 2,5 px / 5 f | 6 px / 10 f | 9–12 px / 14–22 f |
-| Chispas | 7 | 14 + anillo | 22–30 + destello de pantalla |
-| Bloqueo | chispas azules pequeñas, golpe sordo, sacudida mínima | | |
+| Sacudida de cámara | **ninguna** (solo 2 px / 4 f si es counter hit) | 6 px / 10 f | 9–12 px / 14–22 f |
+| Chispas | 6 | 14 + anillo | 22–30 + destello de pantalla |
+| Destello con forma (punto de impacto) | r 17 / 5 f | r 30 / 8 f | r 38 / 10 f |
+| Bloqueo | chispas azules + arco de guardia hacia el atacante, sin sacudida | 1,5 px / 4 f | |
+
+- **Forma según lo que golpea** (`src/render/strikeInfo.ts` lee `anim.limb` y el tipo del movimiento):
+  puño = estrella de 8 puntas cálida · patada = arco anaranjado que se abre en la dirección del golpe ·
+  especial/proyectil/súper = estrella de 10 puntas del color de energía del personaje · bloqueo = arco azul.
+  Con "destellos" desactivados las formas se dibujan a media opacidad.
 
 - Las chispas salen del **punto exacto de impacto** (intersección hitbox/hurtbox) y hacia el lado contrario al atacante.
 - **Flash blanco** intermitente del personaje golpeado durante el hitstop y vibración horizontal del sprite.
