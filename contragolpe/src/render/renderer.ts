@@ -5,6 +5,7 @@ import { poseFor } from "./animator";
 import { drawProjectiles } from "./projectiles";
 import { Camera } from "./camera";
 import { drawDebugBoxes, drawDebugPanel, type InputLog } from "./debug";
+import type { FighterAnimator } from "./fighterAnim";
 import { drawFighterBody, resolvePalette, solve } from "./skeleton";
 import type { Stage } from "./stages";
 import { GROUND_Y, VIEW_H, VIEW_W } from "./view";
@@ -29,6 +30,8 @@ export interface RenderOptions {
   dim?: number;
   /** Bajo consumo: sin desenfoque de sombra en los contornos ni lluvia. */
   lowPower?: boolean;
+  /** Poses con transiciones y exageración (si no se dan, se usa la pose pura del estado). */
+  anims?: [FighterAnimator, FighterAnimator];
 }
 
 export const NO_FX: FighterFx = { flash: 0, jitter: 0, glow: null, glowAlpha: 0 };
@@ -63,14 +66,17 @@ export function drawFighter(
   alt: boolean,
   fx: FighterFx,
   lowPower = false,
+  anim?: FighterAnimator,
 ): void {
   const ch = getChar(f.char);
-  const pose = poseFor(f, s.frame);
+  const pose = anim?.pose ?? poseFor(f, s.frame);
   const joints = solve(pose, ch.look);
   const pal = resolvePalette(ch.look, alt);
+  // Estiramiento del frame de impacto: más largo en la dirección del golpe, algo más bajo (conserva volumen).
+  const st = anim?.stretch ?? 1;
   ctx.save();
   ctx.translate(cam.sx(toPx(f.x)) + fx.jitter, cam.sy(toPx(f.y)));
-  ctx.scale(f.facing * cam.zoom, cam.zoom);
+  ctx.scale(f.facing * cam.zoom * st, cam.zoom * (1 - (st - 1) * 0.5));
   if (fx.glow && fx.glowAlpha > 0) {
     // Contorno brillante: se dibuja la silueta ampliada en un color sólido.
     ctx.save();
@@ -127,7 +133,7 @@ export class GameRenderer {
     for (const f of s.fighters) drawShadow(ctx, this.cam, f);
     // El personaje que ataca se dibuja encima.
     const order = drawOrder(s);
-    for (const i of order) drawFighter(ctx, this.cam, s, s.fighters[i], opt.altPalette[i], opt.fx[i], opt.lowPower);
+    for (const i of order) drawFighter(ctx, this.cam, s, s.fighters[i], opt.altPalette[i], opt.fx[i], opt.lowPower, opt.anims?.[i]);
     drawProjectiles(ctx, this.cam, s, opt.time, opt.altPalette);
     if (!opt.lowPower) stage.drawFront?.(ctx, this.cam, opt.time);
   }

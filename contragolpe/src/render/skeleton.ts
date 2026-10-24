@@ -60,9 +60,15 @@ const limbDir = (a: number): Vec => ({ x: Math.sin(a * RAD), y: -Math.cos(a * RA
 const upDir = (a: number): Vec => ({ x: Math.sin(a * RAD), y: Math.cos(a * RAD) });
 const add = (a: Vec, b: Vec, k = 1): Vec => ({ x: a.x + b.x * k, y: a.y + b.y * k });
 
+/** Diferencia angular por el camino más corto (−180..180]. */
+const angDiff = (from: number, to: number) => ((((to - from) % 360) + 540) % 360) - 180;
+
 export function lerpPose(a: Pose, b: Pose, t: number): Pose {
   const l = (x: number, y: number) => x + (y - x) * t;
-  const l2 = (x: [number, number], y: [number, number]): [number, number] => [l(x[0], y[0]), l(x[1], y[1])];
+  // Ángulos de extremidades: la IK los da en (−180, 180]; interpolar en línea recta entre 170 y −170 haría
+  // girar el brazo casi una vuelta entera en un frame. Se interpola por el camino más corto.
+  const la = (x: number, y: number) => x + angDiff(x, y) * t;
+  const l2 = (x: [number, number], y: [number, number]): [number, number] => [la(x[0], y[0]), la(x[1], y[1])];
   return {
     hx: l(a.hx, b.hx),
     torso: l(a.torso, b.torso),

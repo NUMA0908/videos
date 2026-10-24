@@ -84,6 +84,16 @@ Decisiones clave:
   el animador interpola ángulos según el estado y el frame del movimiento.
 - Cada ataque tiene **anticipación** (llega rápido a la pose de carga y la sostiene: se ve venir), un **frame de
   impacto nítido** (salta directo a la pose de golpe en el primer frame activo) y **follow-through**.
+- **Poses de enlace** (`src/render/fighterAnim.ts`, memoria solo de presentación): al cambiar de estado se
+  mezcla desde la pose que se veía (idle 4 f, caminar 3, ataque hasta 4, aire 3, aterrizaje/dash/agarre 2…).
+  Golpe recibido, bloqueo, parry y agarrado cortan en seco: el impacto se lee al instante. La mezcla de un
+  ataque termina como muy tarde en `startup − 2`, así que **el primer frame activo muestra exactamente la
+  pose de golpe** (hay test). Solo avanza con frames no congelados.
+- Los ángulos de las extremidades se interpolan por el **camino más corto** (antes un antebrazo que pasaba de
+  170° a −170° daba casi una vuelta entera en un frame al caminar o atacar).
+- **Exageración**: el atacante se estira un 4 % (ligero), 7 % (fuerte) o 6 % (especial) en el primer frame
+  activo y la mitad en el segundo; se sostiene durante el hitstop. El golpeado se inclina hacia atrás según la
+  fuerza (retroceso que se suelta al reanudarse).
 - Para pasar a spritesheets basta con sustituir `drawFighter` / `skeleton.ts`: el resto del juego solo pide
   "dibuja a este personaje en este estado".
 
@@ -264,7 +274,9 @@ y usan su propio azar. Regla de oro: **el fuerte tiene que destacar sobre el lig
   Con "destellos" desactivados las formas se dibujan a media opacidad.
 
 - Las chispas salen del **punto exacto de impacto** (intersección hitbox/hurtbox) y hacia el lado contrario al atacante.
-- **Flash blanco** intermitente del personaje golpeado durante el hitstop y vibración horizontal del sprite.
+- **Flash blanco** del personaje golpeado: un solo "pop" al principio del hitstop (2 frames; 3 si el hitstop
+  es ≥ 8), no un parpadeo continuo. **Vibración de hitstop** que decae con los frames que quedan:
+  ligero 2,5 px, fuerte 4,5, súper 5, bloqueo 1,5/2,5 (antes ±3 px para todo).
 - **Estela** (smear) de la extremidad que golpea durante los frames activos: blanca en normales, del color de
   energía en especiales.
 - **Anticipación**: los especiales con proyectil concentran energía en las manos durante el startup; las poses

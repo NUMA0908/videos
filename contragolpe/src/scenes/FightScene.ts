@@ -11,6 +11,7 @@ import type { FighterState, GameState, MatchConfig, Side, SimEvent } from "../si
 import { poseFor } from "../render/animator";
 import { InputLog } from "../render/debug";
 import { Effects } from "../render/effects";
+import { FighterAnimator } from "../render/fighterAnim";
 import { Hud } from "../render/hud";
 import { GameRenderer, type FighterFx } from "../render/renderer";
 import { resolvePalette, solve } from "../render/skeleton";
@@ -62,6 +63,8 @@ export class FightScene implements Scene {
   readonly renderer: GameRenderer;
   readonly hud = new Hud();
   readonly fx = new Effects();
+  /** Poses con transiciones, exageración del impacto y vibración de hitstop (solo presentación). */
+  readonly anims: [FighterAnimator, FighterAnimator] = [new FighterAnimator(), new FighterAnimator()];
   readonly logs: [InputLog, InputLog] = [new InputLog(), new InputLog()];
   debug = false;
   /** Último input de cada lado (para el modo entrenamiento y la IA). */
@@ -96,6 +99,7 @@ export class FightScene implements Scene {
     this.state = createMatch(this.config, seed);
     this.hud.reset(this.state);
     this.fx.clear();
+    for (const a of this.anims) a.reset();
     this.renderer.cam.snap(this.state);
     this.koSlow = 0;
     this.app.loop.timeScale = 1;
@@ -127,6 +131,10 @@ export class FightScene implements Scene {
     this.hud.update(s);
     this.react(s);
     this.fx.onEvents(s, s.events);
+    for (const side of [0, 1] as const) {
+      this.anims[side].onEvents(s.events, side);
+      this.anims[side].tick(s.fighters[side], s.frame, this.app.settings.flashes);
+    }
     if (s.events.length) this.rumble(s);
     this.trackSmears(s);
     this.fx.update();
@@ -195,7 +203,7 @@ export class FightScene implements Scene {
         const limb = mv.anim.limb;
         if (limb && limb !== "none" && f.mf >= mv.startup - 1 && f.mf <= mv.startup + mv.active - 1) {
           const ch = getChar(f.char);
-          const j = solve(poseFor(f, s.frame), ch.look);
+          const j = solve(this.anims[f.side].pose ?? poseFor(f, s.frame), ch.look);
           const p = limb === "handF" ? j.haF : limb === "handB" ? j.haB : limb === "footF" ? j.ftF : j.ftB;
           point = { x: toPx(f.x) + p.x * f.facing, y: toPx(f.y) + p.y };
           active = true;
@@ -239,10 +247,10 @@ export class FightScene implements Scene {
     if (f.state === "parry") return { flash: 0, jitter: 0, glow: "#9fe8ff", glowAlpha: 0.3 + 0.2 * (f.parryWindow % 2) };
     if (this.parryFlash[f.side] > 0) return { flash: 0, jitter: 0, glow: "#ffffff", glowAlpha: (0.9 * this.parryFlash[f.side]) / 12 };
     const hitFrozen = f.hitstop > 0 && (f.state === "hitstun" || f.state === "airHit" || f.state === "ko" || f.state === "thrown");
-    const blockFrozen = f.hitstop > 0 && f.state === "blockstun";
+    const anim = this.anims[f.side];
     return {
-      flash: hitFrozen && flashes && f.hitstop % 4 >= 2 ? 1 : 0,
-      jitter: hitFrozen || blockFrozen ? (f.hitstop % 2 === 0 ? 3 : -3) : 0,
+      flash: anim.flash,
+      jitter: anim.jitter,
       glow: hitFrozen && !flashes ? "#ffffff" : null,
       glowAlpha: hitFrozen && !flashes ? 0.25 : 0,
     };
@@ -257,6 +265,7 @@ export class FightScene implements Scene {
       time: this.app.time,
       dim: this.superDim,
       lowPower: this.app.settings.lowPower,
+      anims: this.anims,
     });
     this.fx.draw(ctx, this.renderer.cam);
     if (s.freeze > 0 && s.freezeOwner !== -1 && !this.app.settings.lowPower) this.drawSpeedLines(ctx, s);
