@@ -94,8 +94,9 @@ Decisiones clave:
 - **Exageración**: el atacante se estira un 4 % (ligero), 7 % (fuerte) o 6 % (especial) en el primer frame
   activo y la mitad en el segundo; se sostiene durante el hitstop. El golpeado se inclina hacia atrás según la
   fuerza (retroceso que se suelta al reanudarse).
-- Para pasar a spritesheets basta con sustituir `drawFighter` / `skeleton.ts`: el resto del juego solo pide
-  "dibuja a este personaje en este estado".
+- **Sprites ilustrados**: el plan (interfaz `FighterView` con esqueleto y sprites intercambiables por personaje,
+  tabla de tiempos por dibujo, atlas y tests de sincronía) está en [docs/sprites-plan.md](docs/sprites-plan.md);
+  la lista de dibujos con sus nombres, en [ASSETS_NEEDED.md](ASSETS_NEEDED.md). Sin implementar todavía.
 
 ## 6. Modo debug (F1)
 
