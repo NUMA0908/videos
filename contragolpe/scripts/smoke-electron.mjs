@@ -65,6 +65,7 @@ async function main() {
         return JSON.stringify(
           {
             escena: g?.scene?.kind,
+            teclasRecibidas: window.__smokeKeys,
             seleccion: g?.scene?.sel,
             fps: g?.loop?.fps,
             tps: g?.loop?.tps,
@@ -91,10 +92,32 @@ async function main() {
     }
     throw new Error(`Tiempo agotado esperando: ${what}\n${await diagnose()}`);
   }
+  /**
+   * Pulsa una tecla y comprueba que llegó a la página. En el runner Linux de CI (Xvfb sin gestor de ventanas)
+   * a veces se pierden teclas inyectadas antes de llegar a la página: se reenvía (y se cuenta) en vez de dar
+   * un falso fallo. Si la tecla llega y el juego no reacciona, eso sí falla (lo detectan las esperas).
+   */
+  let lostKeys = 0;
+  const keysSeen = () => win.evaluate(() => window.__smokeKeys ?? 0).catch(() => 0);
+  async function focusGame() {
+    await app.evaluate(({ BrowserWindow }) => {
+      const w = BrowserWindow.getAllWindows()[0];
+      w?.show();
+      w?.focus();
+      w?.webContents.focus();
+    });
+    await win.focus("#game").catch(() => {});
+  }
   async function press(key, times = 1) {
     for (let i = 0; i < times; i++) {
-      await win.keyboard.press(key);
-      await sleep(120);
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const before = await keysSeen();
+        await win.keyboard.press(key);
+        await sleep(120);
+        if ((await keysSeen()) > before) break;
+        lostKeys++;
+        await focusGame();
+      }
     }
   }
   const memory = async () => {
@@ -109,11 +132,22 @@ async function main() {
   await waitFor(async () => (await kind()) === "title", "menú principal");
   const startupMs = Date.now() - t0;
   console.log(`✓ menú principal en ${startupMs} ms`);
+  // Contador de teclas recibidas por la página (para distinguir "no llegó" de "llegó y no hizo nada").
+  await win.evaluate(() => {
+    window.__smokeKeys = 0;
+    window.addEventListener("keydown", () => window.__smokeKeys++, true);
+  });
+  await focusGame();
   await sleep(2000);
   const menu = { ...(await memory()), ...(await perf()) };
 
-  // Título → "Versus contra CPU" (tercera opción).
-  await press("ArrowDown", 2);
+  // Título → "Versus contra CPU" (tercera opción), siguiendo la selección real del menú.
+  const sel = () => win.evaluate(() => window.__game.scene.sel);
+  await waitFor(async () => {
+    if ((await sel()) === 2) return true;
+    await press("ArrowDown");
+    return (await sel()) === 2;
+  }, "opción «Versus contra CPU»");
   await press("Enter");
   await waitFor(async () => (await kind()) === "select", "selección de personaje");
   console.log("✓ selección de personaje");
@@ -140,16 +174,31 @@ async function main() {
     await press("Escape");
     return false;
   }, "menú de pausa");
-  await press("ArrowUp");
+  await waitFor(async () => {
+    const last = await win.evaluate(() => window.__game.scene.pauseSel === window.__game.scene.pauseItems().length - 1);
+    if (!last) await press("ArrowUp");
+    return last;
+  }, "opción «Salir al menú»");
   await press("Enter");
   await waitFor(async () => (await kind()) === "title", "vuelta al menú");
   console.log("✓ vuelta al menú principal");
 
   // "Salir del juego" (última opción del menú principal; solo existe en escritorio).
-  await press("ArrowUp");
+  let isClosed = false;
+  closed.then(() => (isClosed = true));
+  const title = () => win.evaluate(() => window.__game.scene.kind === "title" && window.__game.scene.sel).catch(() => null);
+  const lastItem = 7; // Arcade, Versus, Versus CPU, Entrenamiento, Trial, Movimientos, Opciones, Salir
+  await waitFor(async () => {
+    if ((await title()) === lastItem) return true;
+    await press("ArrowUp");
+    return (await title()) === lastItem;
+  }, "opción «Salir del juego»");
   // La app puede cerrarse antes de que Playwright suelte la tecla: eso es justo lo esperado.
-  await win.keyboard.press("Enter").catch(() => {});
-  const exited = await Promise.race([closed.then(() => true), sleep(10_000).then(() => false)]);
+  for (let i = 0; i < 3 && !isClosed; i++) {
+    await win.keyboard.press("Enter").catch(() => {});
+    await Promise.race([closed, sleep(4000)]);
+  }
+  const exited = isClosed;
   if (!exited) {
     await app.close();
     throw new Error('"Salir del juego" no cerró la app');
@@ -161,7 +210,7 @@ async function main() {
   for (const line of log.split("\n")) if (line.includes("[error]")) errors.push(`registro: ${line}`);
   if (!fs.existsSync(path.join(userData, "window-state.json"))) errors.push("no se guardó el estado de la ventana al cerrar");
 
-  const metrics = { platform: `${process.platform}-${process.arch}`, packaged: !fromSource, startupMs, menu, match };
+  const metrics = { platform: `${process.platform}-${process.arch}`, packaged: !fromSource, startupMs, menu, match, teclasReenviadas: lostKeys };
   fs.mkdirSync(path.join(root, "release"), { recursive: true });
   fs.writeFileSync(path.join(root, "release", "smoke-metrics.json"), JSON.stringify(metrics, null, 2));
   console.log(JSON.stringify(metrics, null, 2));
