@@ -56,6 +56,31 @@ async function main() {
   });
   win.on("pageerror", (e) => errors.push(`página: ${e.message}`));
 
+  /** Estado del juego para entender un atasco en una máquina que no tenemos delante (CI). */
+  const diagnose = () =>
+    win
+      .evaluate(() => {
+        const g = window.__game;
+        const i = g?.input;
+        return JSON.stringify(
+          {
+            escena: g?.scene?.kind,
+            seleccion: g?.scene?.sel,
+            fps: g?.loop?.fps,
+            tps: g?.loop?.tps,
+            frames: g?.perf?.frames,
+            foco: g?.focused,
+            ultimoDispositivo: i?.lastDevice,
+            mandosJugador: i?.playerPad,
+            mandos: (i?.readers ?? []).filter((r) => r.connected).map((r) => ({ id: r.id, mapping: r.mapping, dir: r.dir, botones: r.buttons.map((b, n) => (b ? n : -1)).filter((n) => n >= 0), ejes: r.axes.map((a) => +a.toFixed(2)) })),
+          },
+          null,
+          1,
+        );
+      })
+      .then((d) => `estado: ${d}\nerrores hasta ahora: ${errors.join(" | ") || "ninguno"}`)
+      .catch((e) => `sin diagnóstico (${e.message})`);
+
   // Con una CSP sin unsafe-eval, waitForFunction no funciona: se consulta con evaluate.
   const kind = () => win.evaluate(() => window.__game?.scene?.kind ?? null).catch(() => null);
   async function waitFor(fn, what, ms = 20_000) {
@@ -64,7 +89,7 @@ async function main() {
       if (await fn()) return;
       await sleep(50);
     }
-    throw new Error(`Tiempo agotado esperando: ${what} (escena: ${await kind()})`);
+    throw new Error(`Tiempo agotado esperando: ${what}\n${await diagnose()}`);
   }
   async function press(key, times = 1) {
     for (let i = 0; i < times; i++) {

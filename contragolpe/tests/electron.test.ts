@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { CSP, isAllowedUrl } from "../electron/security";
+import { CSP, CSP_META, isAllowedUrl } from "../electron/security";
 
 describe("seguridad de la app de escritorio", () => {
+  it("la CSP del <meta> es la misma salvo frame-ancestors (que solo vale como cabecera)", () => {
+    expect(CSP).toContain("frame-ancestors 'none'");
+    expect(CSP_META).not.toContain("frame-ancestors");
+    expect(CSP_META).toContain("script-src 'self'");
+    expect(CSP_META.split("; ").length).toBe(CSP.split("; ").length - 1);
+  });
+
   it("la CSP no permite eval ni recursos remotos", () => {
     expect(CSP).not.toContain("unsafe-eval");
     expect(CSP).toContain("default-src 'self'");

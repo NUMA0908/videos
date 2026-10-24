@@ -13,6 +13,14 @@ export const CSP = [
   "frame-ancestors 'none'",
 ].join("; ");
 
+/**
+ * La misma política para la etiqueta <meta> del HTML: sin `frame-ancestors`, que el navegador ignora (y avisa
+ * por consola) si llega por <meta>. La app de escritorio la aplica igualmente con la cabecera HTTP (`CSP`).
+ */
+export const CSP_META = CSP.split("; ")
+  .filter((d) => !d.startsWith("frame-ancestors"))
+  .join("; ");
+
 /** Orígenes a los que la ventana puede navegar (el juego en sí). Todo lo demás se bloquea. */
 export function isAllowedUrl(url: string, devServer: string | undefined): boolean {
   try {

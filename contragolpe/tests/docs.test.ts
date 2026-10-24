@@ -4,7 +4,7 @@ import { FRAMEDATA_END, FRAMEDATA_START, frameDataMarkdown, moveListMarkdown, MO
 
 describe("documentación", () => {
   it("DESIGN.md tiene la frame data al día (npm run framedata)", () => {
-    const doc = readFileSync("DESIGN.md", "utf8");
+    const doc = readFileSync("DESIGN.md", "utf8").replace(/\r\n/g, "\n");
     const start = doc.indexOf(FRAMEDATA_START);
     const end = doc.indexOf(FRAMEDATA_END);
     expect(start).toBeGreaterThan(0);
@@ -12,7 +12,7 @@ describe("documentación", () => {
   });
 
   it("README.md tiene la lista de movimientos al día (npm run framedata)", () => {
-    const doc = readFileSync("README.md", "utf8");
+    const doc = readFileSync("README.md", "utf8").replace(/\r\n/g, "\n");
     const start = doc.indexOf(MOVELIST_START);
     const end = doc.indexOf(MOVELIST_END);
     expect(start).toBeGreaterThan(0);

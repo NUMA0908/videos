@@ -1,0 +1,5 @@
+# Saltos de línea LF en todas las plataformas (los tests comparan documentación generada).
+* text=auto eol=lf
+*.png binary
+*.ico binary
+*.icns binary
