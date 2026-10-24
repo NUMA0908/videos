@@ -343,12 +343,29 @@ Capas de cada golpe (las decide `FightScene` a partir del estado y de `state.eve
 
 ## 12. IA (CPU) y muñeco de entrenamiento
 
-- La CPU **no lee inputs**: observa el estado del juego con un **retraso de reacción** (26/17/11 frames en
-  Fácil/Normal/Difícil) y ejecuta especiales con motion inputs reales, frame a frame.
-- Decide por capas: escapar de agarres (adivinando, la ventana es menor que cualquier reacción), cancelar en
-  combo si su golpe conectó, anti-aéreo si ve un salto que se acerca, defensa (bloqueo con la altura que ve,
-  parry de lectura contra proyectiles y saltos), castigo de recuperaciones y juego neutro según distancia y
-  "costumbres" del personaje (Rayo zonea, Chispa se pega, Muralla busca el agarre).
+- La CPU **no lee inputs**: observa el estado del juego con un **retraso de reacción variable** y ejecuta
+  especiales con motion inputs reales, frame a frame.
+  | | Fácil | Normal | Difícil |
+  |---|---|---|---|
+  | Reacción (frames) | 22 ± 3 | 16 ± 4 | 12 ± 2 |
+  | Hit-confirm (frames reales, hitstop incluido) | 22 | 13 | 10 |
+  | Cancelar a ciegas | 12 % | 5 % | 5 % |
+  | Cambiar de plan si pierde | 30 % | 60 % | 85 % |
+  - La reacción se mueve **de 1 en 1 frame** hacia un objetivo que cambia cada 20–60 frames (la atención de una
+    persona sube y baja; nunca "salta" a ver el pasado).
+- **Hit-confirm humano** (antes confirmaba en 2 frames, imposible para una persona): ve su golpe conectar,
+  tarda `confirm` frames reales en reconocerlo y solo cancela si quedan ≥ 4 frames de ventana. Resultado: un
+  ligero suelto casi nunca se confirma; un golpe fuerte (más hitstop) sí; en una cadena el segundo golpe va
+  confirmado por el primero (mira si el rival está en hitstun, como haría una persona). A veces cancela a ciegas
+  (también en bloqueo: se puede castigar). **Castigos comprometidos**: si castiga un error, mete el combo entero sin
+  esperar a confirmar (ya sabe que va a pegar).
+- **Planes** (adaptación): costumbre · presión (más cerca, más dash, menos proyectiles) · distancia (más lejos,
+  más proyectiles) · paciencia (espera y castiga). Cada 5 s compara el daño hecho y recibido (lo que se ve en las
+  barras de vida): si pierde claramente cambia de plan, prefiriendo los que le funcionaron; si gana, insiste.
+- Decide por capas: escapar de agarres (adivinando, la ventana es menor que cualquier reacción), hit-confirm,
+  anti-aéreo si ve un salto que se acerca, defensa (bloqueo con la altura que ve, parry de lectura contra
+  proyectiles y saltos), castigo de recuperaciones y juego neutro según distancia, plan y "costumbres" del
+  personaje (Rayo zonea, Chispa se pega, Muralla busca el agarre).
 - Se equivoca a propósito: probabilidad de despiste, de bloquear con la altura equivocada y de no reaccionar.
   Entre decisiones "piensa" unos frames (más en Fácil).
 - Test: Difícil gana a Fácil ≥ 70 % de los partidos; los partidos CPU vs CPU terminan y son deterministas.
@@ -401,11 +418,16 @@ Una versión ligera corre en cada `npm test` (`tests/balance.test.ts`).
 ### Resultados finales (50 partidos por emparejamiento y nivel)
 - **Sin infinitos**: el combo más largo del fuzzer es de 9 golpes (súper incluida); el máximo de daño, ~36 % de la vida.
 - **Tácticas triviales contra la CPU Difícil**: saltar siempre, tortuga, agarrar y parry a ciegas 0 %;
-  proyectiles 0–18 %; spam de anti-aéreo 0–35 %; machacar 0–47 % (Muralla, el mejor caso).
-- **Personajes (CPU vs CPU)**: Normal 57 / 52 / 43 % (Rayo / Chispa / Muralla); Difícil 54 / 31 / 62 %.
+  proyectiles 0–24 %; spam de anti-aéreo 0–47 %; machacar 0–76 % (Muralla, el mejor caso).
+- **Personajes (CPU vs CPU)**: Normal 63 / 49 / 41 % (Rayo / Chispa / Muralla); Difícil 42 / 24 / 70 %.
   Todos ganan partidos y cada uno gana algún emparejamiento.
-- **Pendiente / a vigilar**: la CPU Normal sigue siendo explotable por dos patrones (Chispazo constante a media
-  distancia y Muralla machacando); Chispa vs Muralla en Difícil es muy desfavorable para Chispa con la IA actual.
+- **IA humana (hit-confirm real, reacción variable)**: al quitarle el confirm de 2 frames la CPU hace menos daño
+  con golpes sueltos, y eso se nota sobre todo contra bots que no se defienden. Antes / después en la CPU Normal:
+  agarrador 47→59 % (Rayo), machacador 94→88 % (Muralla); en Difícil, machacador con Muralla 47→76 %.
+  Es el precio de que la CPU no haga trampas; los castigos comprometidos y los planes recuperan parte.
+- **Pendiente / a vigilar**: Muralla machacando botones sigue siendo la táctica trivial más fuerte (su armadura
+  y su daño alto castigan a una IA que espera); la CPU Normal sigue siendo explotable por proyectiles constantes
+  de Chispa a media distancia; Chispa vs Muralla en Difícil es muy desfavorable para Chispa.
   La simulación mide personajes *jugados por la IA*: estos números deben contrastarse con partidas humanas.
 
 ### Rendimiento

@@ -17,8 +17,16 @@ import { dirMask, motionFrames, waitFrames } from "./macros";
  */
 export interface CpuLevel {
   name: string;
-  /** Frames de retraso de reacción. */
+  /** Frames de retraso de reacción (media). */
   reaction: number;
+  /** La reacción varía ±spread frames (la atención de una persona no es constante). */
+  reactionSpread: number;
+  /** Frames reales (hitstop incluido) que tarda en reconocer si su golpe entró o lo bloquearon (hit-confirm). */
+  confirm: number;
+  /** Probabilidad de cancelar "a ciegas" (sin confirmar): sale también si se lo bloquean. */
+  blindCancel: number;
+  /** Probabilidad de cambiar de plan cuando el actual no funciona. */
+  adapt: number;
   /** Probabilidad de "despistarse" en una decisión. */
   mistake: number;
   block: number;
@@ -35,9 +43,9 @@ export interface CpuLevel {
 }
 
 export const CPU_LEVELS: CpuLevel[] = [
-  { name: "Fácil", reaction: 26, mistake: 0.4, block: 0.35, antiAir: 0.2, parry: 0.02, punish: 0.25, combo: 0.25, tech: 0.1, aggression: 0.35, antiZone: 0.12, think: [14, 34] },
-  { name: "Normal", reaction: 17, mistake: 0.2, block: 0.72, antiAir: 0.5, parry: 0.07, punish: 0.6, combo: 0.6, tech: 0.4, aggression: 0.5, antiZone: 0.4, think: [8, 22] },
-  { name: "Difícil", reaction: 11, mistake: 0.08, block: 0.9, antiAir: 0.75, parry: 0.16, punish: 0.9, combo: 0.85, tech: 0.6, aggression: 0.6, antiZone: 0.6, think: [4, 14] },
+  { name: "Fácil", reaction: 22, reactionSpread: 3, confirm: 22, blindCancel: 0.12, adapt: 0.3, mistake: 0.4, block: 0.35, antiAir: 0.2, parry: 0.02, punish: 0.25, combo: 0.25, tech: 0.1, aggression: 0.35, antiZone: 0.12, think: [14, 34] },
+  { name: "Normal", reaction: 16, reactionSpread: 4, confirm: 13, blindCancel: 0.05, adapt: 0.6, mistake: 0.2, block: 0.72, antiAir: 0.5, parry: 0.07, punish: 0.6, combo: 0.6, tech: 0.4, aggression: 0.5, antiZone: 0.4, think: [8, 22] },
+  { name: "Difícil", reaction: 12, reactionSpread: 2, confirm: 10, blindCancel: 0.05, adapt: 0.85, mistake: 0.08, block: 0.9, antiAir: 0.75, parry: 0.16, punish: 0.9, combo: 0.85, tech: 0.6, aggression: 0.6, antiZone: 0.6, think: [4, 14] },
 ];
 
 /** Cómo juega cada personaje (la IA no "sabe" de frame data; tiene costumbres). */
@@ -106,6 +114,33 @@ const HABITS: Record<string, Habits> = {
   },
 };
 
+/**
+ * Planes de juego: modifican las costumbres del personaje. La CPU mantiene un plan mientras le funciona
+ * (daño hecho ≥ daño recibido) y lo cambia cuando pierde, como una persona.
+ */
+export type PlanId = "costumbre" | "presion" | "distancia" | "paciencia";
+interface Plan {
+  /** Suma a la agresividad del nivel. */
+  aggr: number;
+  /** Multiplica la distancia preferida. */
+  range: number;
+  /** Multiplica las ganas de lanzar proyectiles. */
+  zone: number;
+  /** Multiplica las ganas de esperar bloqueando para castigar. */
+  bait: number;
+  /** Suma a la probabilidad de dash. */
+  dash: number;
+}
+const PLANS: Record<PlanId, Plan> = {
+  costumbre: { aggr: 0, range: 1, zone: 1, bait: 1, dash: 0 },
+  presion: { aggr: 0.25, range: 0.65, zone: 0.4, bait: 0.6, dash: 0.2 },
+  distancia: { aggr: -0.15, range: 1.45, zone: 1.5, bait: 1.2, dash: -0.05 },
+  paciencia: { aggr: -0.2, range: 1, zone: 0.8, bait: 1.8, dash: 0 },
+};
+const PLAN_IDS = Object.keys(PLANS) as PlanId[];
+/** Cada cuántos frames de combate revisa si el plan funciona. */
+const PLAN_REVIEW = 300;
+
 /** Lo que la CPU "ve" del rival en un frame. */
 interface Seen {
   state: FighterState["state"];
@@ -153,6 +188,24 @@ export class Cpu {
   /** Fracción reciente de frames en los que el rival estaba atacando (media móvil). */
   private oppAttackRate = 0;
   private lastSeenMove: string | null = null;
+  /** Retraso de reacción actual (cambia poco a poco hacia `delayTarget`). */
+  private delay: number;
+  private delayTarget: number;
+  private delayTimer = 0;
+  /** Hit-confirm: frames que faltan para "ver" si su golpe entró (−1 = nada pendiente). */
+  private confirmT = -1;
+  /** Ya vio entrar un golpe en esta cadena: el siguiente contacto se cancela sin esperar. */
+  private confirmedString = false;
+  private prevContact: FighterState["contact"] = "none";
+  /** Castigo en curso: sabe que va a pegar, así que mete el combo entero sin esperar a confirmar (frames). */
+  private committed = 0;
+  /** Plan de juego actual y su marcador (daño hecho − recibido). */
+  plan: PlanId = "costumbre";
+  private planScore: Record<PlanId, number> = { costumbre: 0, presion: 0, distancia: 0, paciencia: 0 };
+  private planT = 0;
+  private planDealt = 0;
+  private planTaken = 0;
+  private lastHp: [number, number] = [-1, -1];
 
   constructor(
     public level: CpuLevel,
@@ -160,6 +213,12 @@ export class Cpu {
     seed = 1234,
   ) {
     this.rng = new Rng(seed + side * 7919);
+    this.delay = this.delayTarget = level.reaction;
+  }
+
+  /** Retraso de reacción de este frame (para la depuración y los tests). */
+  get reactionNow(): number {
+    return this.delay;
   }
 
   reset(): void {
@@ -168,6 +227,10 @@ export class Cpu {
     this.holdFrames = 0;
     this.wait = 0;
     this.seen = [];
+    this.confirmT = -1;
+    this.confirmedString = false;
+    this.prevContact = "none";
+    this.committed = 0;
   }
 
   /** Input de este frame. */
@@ -180,6 +243,8 @@ export class Cpu {
     }
     const me = s.fighters[this.side];
     this.learn(me, s);
+    this.drift();
+    this.reviewPlan(s);
 
     // Escapar de agarres (adivinando: la ventana es más corta que cualquier reacción humana).
     if (me.state === "thrown" && me.techWindow > 0) {
@@ -193,6 +258,9 @@ export class Cpu {
     }
     this.techArmed = -1;
 
+    const confirm = this.hitConfirm(s, me);
+    if (confirm !== null) return confirm;
+
     if (this.queue.length) return this.queue.shift() as number;
     if (this.holdFrames > 0) {
       this.holdFrames--;
@@ -205,7 +273,7 @@ export class Cpu {
       const o = this.perceived();
       if (ACTIONABLE.has(me.state) && this.punishable(s, o) && this.rng.chance(this.level.punish * 0.6)) {
         const pin = this.punishInput(s, o);
-        if (pin) return this.push(pin);
+        if (pin) return this.commit(pin);
       }
       // Mientras "piensa", si le atacan bloquea (según el nivel).
       return this.defend(s, me, true) ?? 0;
@@ -237,6 +305,98 @@ export class Cpu {
     this.pokeTrust = Math.min(1, this.pokeTrust + 0.002);
   }
 
+  /** La atención varía: el retraso de reacción se mueve poco a poco dentro de reaction ± spread. */
+  private drift(): void {
+    const lv = this.level;
+    if (--this.delayTimer <= 0) {
+      this.delayTarget = lv.reaction - lv.reactionSpread + this.rng.int(lv.reactionSpread * 2 + 1);
+      this.delayTimer = 20 + this.rng.int(40);
+    }
+    if (this.delay < this.delayTarget) this.delay++;
+    else if (this.delay > this.delayTarget) this.delay--;
+  }
+
+  /**
+   * Cancelar en combo como una persona: ve su golpe conectar, tarda `confirm` frames reales (el hitstop cuenta,
+   * por eso los golpes fuertes se confirman mejor) y solo cancela si aún queda ventana. Un ligero suelto casi
+   * nunca se confirma; en una cadena, el segundo golpe ya va "confirmado" por el primero. A veces cancela a
+   * ciegas (también si se lo bloquean: eso se puede castigar).
+   */
+  private hitConfirm(s: GameState, me: FighterState): number | null {
+    if (this.committed > 0) this.committed--;
+    if (me.state !== "attack" || !me.move) {
+      this.confirmT = -1;
+      this.confirmedString = false;
+      this.prevContact = "none";
+      return null;
+    }
+    const newContact = me.contact !== "none" && this.prevContact === "none";
+    this.prevContact = me.contact;
+    const mv = getMove(me.char, me.move);
+    if (!mv.cancels?.includes("special")) {
+      // Un golpe sin cancel no termina la cuenta del confirm de la cadena (p. ej. tras un salto).
+      if (this.confirmT > 0) this.confirmT--;
+      return null;
+    }
+    const lv = this.level;
+    if (newContact) {
+      if (this.committed > 0 && this.rng.chance(lv.combo)) return this.cancelInto(me);
+      if (this.confirmedString && me.contact === "hit" && this.rng.chance(lv.combo)) return this.cancelInto(me);
+      if (this.rng.chance(lv.blindCancel * lv.combo)) return this.cancelInto(me);
+      this.confirmT = Math.max(1, lv.confirm - 2 + this.rng.int(5));
+      return null;
+    }
+    if (this.confirmT > 0 && --this.confirmT === 0) {
+      this.confirmT = -1;
+      // Lo que ve una persona: ¿el rival está en hitstun? (si ya salió el siguiente golpe de la cadena, el
+      // contacto de ese golpe aún no existe, pero el rival sigue aturdido por el anterior).
+      const op = s.fighters[this.side === 0 ? 1 : 0];
+      if (op.state !== "hitstun" && op.state !== "airHit") return null;
+      this.confirmedString = true;
+      if (me.contact !== "hit") return null;
+      // Hace falta tiempo para el motion (3 direcciones + botón) dentro de la ventana de cancel.
+      if (TUNING.cancelWindow - me.sinceContact >= 4 && this.rng.chance(lv.combo)) return this.cancelInto(me);
+    }
+    return null;
+  }
+
+  private cancelInto(me: FighterState): number {
+    const habits = HABITS[me.char] ?? HABITS.rayo;
+    this.committed = 0;
+    this.queue = [];
+    this.holdFrames = 0;
+    if (me.meter >= TUNING.meter.max && this.rng.chance(0.5)) return this.push([Btn.HP | Btn.HK]);
+    return this.push(motionFrames(habits.ender[0], habits.ender[1], me.facing, 1));
+  }
+
+  /**
+   * Adaptación: cada PLAN_REVIEW frames mira el daño hecho y recibido (lo que se ve en las barras de vida).
+   * Si va perdiendo, cambia de plan (prefiriendo los que le funcionaron); si va ganando, insiste.
+   */
+  private reviewPlan(s: GameState): void {
+    const me = s.fighters[this.side];
+    const op = s.fighters[this.side === 0 ? 1 : 0];
+    const [hpMe, hpOp] = this.lastHp;
+    // Entre rondas la vida se rellena: solo cuentan las bajadas.
+    if (hpMe >= 0) {
+      this.planTaken += Math.max(0, hpMe - me.health);
+      this.planDealt += Math.max(0, hpOp - op.health);
+    }
+    this.lastHp = [me.health, op.health];
+    if (++this.planT < PLAN_REVIEW) return;
+    const diff = this.planDealt - this.planTaken;
+    this.planScore[this.plan] = this.planScore[this.plan] * 0.5 + diff;
+    const losing = this.planTaken > this.planDealt * 1.25 + 40;
+    if (losing && this.rng.chance(this.level.adapt)) {
+      const others = PLAN_IDS.filter((p) => p !== this.plan);
+      const best = others.reduce((a, b) => (this.planScore[b] > this.planScore[a] ? b : a));
+      this.plan = this.planScore[best] > 0 && this.rng.chance(0.6) ? best : others[this.rng.int(others.length)];
+    }
+    this.planT = 0;
+    this.planDealt = 0;
+    this.planTaken = 0;
+  }
+
   /** Mientras bloquea, ajusta la altura a lo que ve. */
   private refreshHold(s: GameState, me: FighterState): number {
     if (this.hold & Btn.PARRY) return this.hold;
@@ -248,7 +408,7 @@ export class Cpu {
   }
 
   private perceived(): Seen {
-    const i = Math.max(0, this.seen.length - 1 - this.level.reaction);
+    const i = Math.max(0, this.seen.length - 1 - this.delay);
     return this.seen[i];
   }
 
@@ -317,6 +477,7 @@ export class Cpu {
     const ch = getChar(me.char);
     const habits = HABITS[me.char] ?? HABITS.rayo;
     const lv = this.level;
+    const plan = PLANS[this.plan];
     const o = this.perceived();
     const d = this.dist(s);
     const f = me.facing;
@@ -324,15 +485,8 @@ export class Cpu {
     const back = dirMask(4, f);
     const meX = toPx(me.x);
 
-    // Cancelar en combo si nuestro golpe conectó (la CPU ve su propio contacto al instante).
-    if (me.state === "attack" && me.contact === "hit" && me.move) {
-      const mv = getMove(me.char, me.move);
-      if (mv.cancels?.includes("special") && me.sinceContact <= 2 && this.rng.chance(lv.combo)) {
-        if (me.meter >= TUNING.meter.max && this.rng.chance(0.5)) return this.push([Btn.HP | Btn.HK]);
-        return this.push(motionFrames(habits.ender[0], habits.ender[1], f, 1));
-      }
-      return 0;
-    }
+    // Atacando: el hit-confirm (arriba, en `input`) decide si cancela; aquí no hay nada más que hacer.
+    if (me.state === "attack") return 0;
 
     // En el aire: ataque aéreo si el rival está debajo/cerca.
     if (me.state === "air") {
@@ -394,29 +548,31 @@ export class Cpu {
     // Castigo: el rival está recuperándose de algo que falló o le bloquearon.
     if (this.punishable(s, o) && this.rng.chance(lv.punish)) {
       const pin = this.punishInput(s, o);
-      if (pin) return this.push(pin);
+      if (pin) return this.commit(pin);
     }
 
     // Juego neutro según distancia y personalidad
     const r = this.rng.next();
-    const aggr = lv.aggression;
+    const aggr = Math.max(0, Math.min(1, lv.aggression + plan.aggr));
     const myProj = s.projectiles.some((p) => p.owner === this.side);
+    const dash = Math.max(0, habits.dash + plan.dash);
+    const range = habits.range * plan.range;
 
     if (d > 330) {
-      if (habits.zoner && !myProj && r < 0.45 && habits.projectile) return this.push(motionFrames(habits.projectile[0], habits.projectile[1], f, 1));
-      if (r < habits.dash) return this.push([fwd, 0, fwd]);
-      if (r < 0.75) return this.walk(fwd, 18 + this.rng.int(18));
+      if (habits.zoner && !myProj && r < 0.45 * plan.zone && habits.projectile) return this.push(motionFrames(habits.projectile[0], habits.projectile[1], f, 1));
+      if (r < dash) return this.push([fwd, 0, fwd]);
+      if (r < 0.75 || range < d - 60) return this.walk(fwd, 18 + this.rng.int(18));
       return this.walk(0, 10);
     }
 
     if (d > 150) {
-      if (habits.zoner && !myProj && r < 0.25 && habits.projectile) return this.push(motionFrames(habits.projectile[0], habits.projectile[1], f, 1));
+      if (habits.zoner && !myProj && r < 0.25 * plan.zone && habits.projectile) return this.push(motionFrames(habits.projectile[0], habits.projectile[1], f, 1));
       for (const p of habits.pokes) {
         if (d < p.reach + 10 && r < 0.4) return this.push([(p.crouch ? Btn.DOWN : 0) | Btn[p.move]]);
       }
       if (r < (0.4 + aggr * 0.25) * this.jumpTrust && d < 260) return this.push([Btn.UP | fwd, Btn.UP | fwd, Btn.UP | fwd]);
-      if (r < 0.5 + habits.dash && d > 170) return this.push([fwd, 0, fwd]);
-      if (d > habits.range) return this.walk(fwd, 12 + this.rng.int(16));
+      if (r < 0.5 + dash && d > 170) return this.push([fwd, 0, fwd]);
+      if (d > range) return this.walk(fwd, 12 + this.rng.int(16));
       if (r < 0.85) return this.walk(back, 8 + this.rng.int(10));
       return this.walk(0, 12);
     }
@@ -424,7 +580,7 @@ export class Cpu {
     // Cerca: a veces espera bloqueando para castigar (más si le han ganado a golpes o abusa de reversals).
     // Contra quien no para de apretar botones: bloquear y castigar lo que falle.
     const masher = Math.max(0, this.oppAttackRate - 0.25) * 1.6;
-    const bait = 0.12 + (1 - this.pokeTrust) * 0.3 + Math.min(0.55, this.reversalSeen * 0.09) + Math.min(0.45, masher);
+    const bait = (0.12 + (1 - this.pokeTrust) * 0.3 + Math.min(0.55, this.reversalSeen * 0.09) + Math.min(0.45, masher)) * plan.bait;
     if (r < bait) {
       // Contra un agarre de comando no sirve esperar agachado: mejor retroceder fuera de su alcance.
       const grabber = !!HABITS[s.fighters[this.side === 0 ? 1 : 0].char]?.command;
@@ -448,6 +604,12 @@ export class Cpu {
     return this.walk(back | Btn.DOWN, 10 + this.rng.int(10));
   }
 
+  /** Castigo: el combo va "comprometido" (cancela en el primer contacto sin esperar a confirmarlo). */
+  private commit(frames: number[]): number {
+    this.committed = 30;
+    return this.push(frames);
+  }
+
   private walk(mask: number, frames: number): number {
     this.hold = mask;
     this.holdFrames = frames;
@@ -459,7 +621,7 @@ export class Cpu {
    * menos nuestro propio retraso de reacción. 0 = nada que castigar.
    */
   private punishWindow(s: GameState, o: Seen): number {
-    const lag = this.level.reaction;
+    const lag = this.delay;
     if (o.state === "parryFail") return Math.max(0, TUNING.parry.failRecovery - lag + 4);
     if (o.state === "fall") return 18;
     if (o.state === "land") return Math.max(0, 10 - lag);
